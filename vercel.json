@@ -15,7 +15,7 @@
   ],
   "routes": [
     {
-      "src": "/api/predict",
+      "src": "/api/(.*)",
       "dest": "backend/app.py"
     },
     {
