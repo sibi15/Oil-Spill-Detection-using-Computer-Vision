@@ -22,11 +22,5 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-  ],
-  "functions": {
-    "backend/app.py": {
-      "maxDuration": 30,
-      "runtime": "python3.9"
-    }
-  }
+  ]
 } 
