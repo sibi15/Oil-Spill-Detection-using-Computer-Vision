@@ -1,6 +1,6 @@
 Flask==2.3.3
 Flask-CORS==4.0.0
-tensorflow-cpu==2.13.0
+tensorflow-cpu==2.16.1
 opencv-python-headless==4.8.1.78
 Pillow==10.0.1
 matplotlib==3.7.2
