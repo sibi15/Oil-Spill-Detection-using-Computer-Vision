@@ -1,0 +1,11 @@
+Flask==2.3.3
+Flask-CORS==4.0.0
+tensorflow-cpu==2.13.0
+opencv-python-headless==4.8.1.78
+Pillow==10.0.1
+matplotlib==3.7.2
+numpy==1.24.3
+scikit-image==0.21.0
+Werkzeug==2.3.7
+gunicorn==21.2.0
+requests==2.31.0

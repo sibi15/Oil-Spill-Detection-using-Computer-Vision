@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "app.py": {
+      "runtime": "python3.9",
+      "maxDuration": 30
+    }
+  }
+} 
