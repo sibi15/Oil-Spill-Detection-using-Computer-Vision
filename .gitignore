@@ -67,3 +67,4 @@ backend/labels/
 /tmp/
 *.tmp
 *.temp 
+.vercel

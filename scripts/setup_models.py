@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
-"""
-Helper script to upload model files to cloud storage and generate download URLs.
-This script provides guidance for different cloud storage options.
-"""
+# Script to upload model files to cloud storage (AWS, GitHub assets, or GDrive) and generate download URLs
 
 import os
 import sys
 from pathlib import Path
 
 def check_models_exist():
-    """Check if model files exist in the backend/models directory."""
+    #Check if model files exist in the backend/models directory
     models_dir = Path("backend/models")
     models = ["infrared_model.keras", "sar_model.keras"]
     
@@ -28,7 +25,6 @@ def check_models_exist():
     return existing_models
 
 def google_drive_instructions():
-    """Provide instructions for Google Drive upload."""
     print("\n" + "="*50)
     print("GOOGLE DRIVE UPLOAD INSTRUCTIONS")
     print("="*50)
@@ -41,7 +37,6 @@ def google_drive_instructions():
     print("6. Update MODEL_URLS in backend/app.py")
 
 def aws_s3_instructions():
-    """Provide instructions for AWS S3 upload."""
     print("\n" + "="*50)
     print("AWS S3 UPLOAD INSTRUCTIONS")
     print("="*50)
@@ -54,7 +49,6 @@ def aws_s3_instructions():
     print("https://your-bucket.s3.amazonaws.com/infrared_model.keras")
 
 def github_releases_instructions():
-    """Provide instructions for GitHub Releases upload."""
     print("\n" + "="*50)
     print("GITHUB RELEASES UPLOAD INSTRUCTIONS")
     print("="*50)
@@ -67,7 +61,6 @@ def github_releases_instructions():
     print("https://github.com/username/repo/releases/download/v1.0/infrared_model.keras")
 
 def update_model_urls_template():
-    """Show the template for updating MODEL_URLS."""
     print("\n" + "="*50)
     print("UPDATE MODEL_URLS TEMPLATE")
     print("="*50)
@@ -81,8 +74,7 @@ def update_model_urls_template():
     print("Replace the placeholder URLs with your actual download URLs.")
 
 def main():
-    """Main function to guide through model setup."""
-    print("🚀 Oil Spill Detection - Model Setup Guide")
+    print("Oil Spill Detection - Model Setup Guide")
     print("="*50)
     
     # Check for existing models
@@ -121,14 +113,6 @@ def main():
         github_releases_instructions()
     
     update_model_urls_template()
-    
-    print("\n" + "="*50)
-    print("NEXT STEPS:")
-    print("1. Upload your models to your chosen platform")
-    print("2. Get the download URLs")
-    print("3. Update MODEL_URLS in backend/app.py")
-    print("4. Deploy to Vercel")
-    print("="*50)
 
 if __name__ == "__main__":
     main() 
