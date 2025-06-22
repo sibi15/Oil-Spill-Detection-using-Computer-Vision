@@ -58,6 +58,9 @@ backend/models/*.keras
 backend/models/*.h5
 backend/models/*.pkl
 
+# Dataset and sample files
+dataset/
+
 # Upload and result files
 backend/uploads/
 backend/results/
