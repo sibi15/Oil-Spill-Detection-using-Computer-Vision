@@ -34,14 +34,15 @@ os.makedirs(LABELS_FOLDER, exist_ok=True)
 
 matplotlib.use('Agg')
 
-# Model URLs - you'll need to upload your models to a cloud storage service
+# Model URLs - Models uploaded to a cloud storage service
+
 MODEL_URLS = {
     'infrared_model.keras': 'https://drive.google.com/uc?export=download&id=1azpgoH2M52HQtjNj3V_aeLzy_X5xgsXu',
     'sar_model.keras': 'https://drive.google.com/uc?export=download&id=1le5uHObuGbiQKyw_r8p9JgY_6eko-9h1'
 }
 
 def download_model_if_needed(model_name: str):
-    """Download model if it doesn't exist locally."""
+    # Download model if it doesn't exist locally
     model_path = os.path.join(MODEL_FOLDER, model_name)
     
     if os.path.exists(model_path):
@@ -128,18 +129,22 @@ def predict():
         filename = secure_filename(file.filename)
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         file.save(filepath)
+
         # read raw grayscale image for plotting and density
         original_image = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
+
         # load processed image and optional true mask
         processed_image = load_images(filepath)
         true_mask = None
         original_label = None
+
         # attempt auto-load static mask
         base = os.path.splitext(filename)[0]
         lbl_static = os.path.join(LABELS_FOLDER, f"{base}.png")
         if os.path.exists(lbl_static):
             original_label = cv2.imread(lbl_static, cv2.IMREAD_GRAYSCALE)
             processed_image, true_mask = load_images(filepath, lbl_static)
+
         # override with uploaded label if provided
         label_file = request.files.get('label')
         if label_file:

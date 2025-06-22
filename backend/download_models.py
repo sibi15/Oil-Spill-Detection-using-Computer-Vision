@@ -1,24 +1,20 @@
 #!/usr/bin/env python3
-"""
-Script to download model files from external storage.
-Since Vercel has a 50MB file size limit and our models are 400MB+,
-we need to download them at runtime from external storage.
-"""
+# Script to download model files at runtime from external storage.
 
 import os
 import requests
 import zipfile
 from pathlib import Path
 
-# Model URLs - you'll need to upload your models to a cloud storage service
-# Examples: Google Drive, AWS S3, GitHub Releases, etc.
+# Model URLs - Models uploaded to a cloud storage service
+
 MODEL_URLS = {
-    'infrared_model.keras': 'YOUR_INFRARED_MODEL_URL_HERE',
-    'sar_model.keras': 'YOUR_SAR_MODEL_URL_HERE'
+    'infrared_model.keras': 'https://drive.google.com/uc?export=download&id=1azpgoH2M52HQtjNj3V_aeLzy_X5xgsXu',
+    'sar_model.keras': 'https://drive.google.com/uc?export=download&id=1le5uHObuGbiQKyw_r8p9JgY_6eko-9h1'
 }
 
 def download_model(model_name: str, url: str, models_dir: str = 'models'):
-    """Download a model file from URL."""
+    # Download a model file from URL
     os.makedirs(models_dir, exist_ok=True)
     model_path = os.path.join(models_dir, model_name)
     
@@ -44,7 +40,7 @@ def download_model(model_name: str, url: str, models_dir: str = 'models'):
         return None
 
 def download_all_models():
-    """Download all required models."""
+    # Download all required models
     for model_name, url in MODEL_URLS.items():
         if url != f'YOUR_{model_name.upper().replace(".", "_")}_URL_HERE':
             download_model(model_name, url)
