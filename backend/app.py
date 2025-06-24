@@ -343,5 +343,5 @@ def predict():
             traceback.print_exc()
             return jsonify({'error': f'Error processing image: {str(e)}'}), 500
 
-    if __name__ == '__main__':
-        app.run(debug=False, port=PORT)
+if __name__ == '__main__':
+    app.run(debug=False, port=PORT)
