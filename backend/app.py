@@ -1,6 +1,17 @@
-from matplotlib.colors import Normalize
-import matplotlib.pyplot as plt
-import matplotlib
+import cv2
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import os
+import numpy as np
+from skimage.transform import resize
+from PIL import Image
+import io
+import base64
+import tensorflow as tf
+from werkzeug.utils import secure_filename
+import traceback  # for debug exception tracing
+import requests
+from dotenv import load_dotenv
 import cv2
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -33,8 +44,6 @@ SAMPLE_SIZE = (256, 256)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(RESULTS_FOLDER, exist_ok=True)
 os.makedirs(MODEL_FOLDER, exist_ok=True)
-
-matplotlib.use('Agg')
 
 # Model configuration from environment variables
 MODEL_URLS = {
@@ -289,8 +298,4 @@ def predict():
 
 
 if __name__ == '__main__':
-    # app.run(debug=True)
-    app.run(debug=True, port=5000)
-
-# For Vercel deployment
-app.debug = False
+    app.run(debug=False, port=PORT)
