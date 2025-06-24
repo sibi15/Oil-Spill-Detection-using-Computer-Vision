@@ -167,33 +167,35 @@ def predict():
         if label_file:
             os.makedirs(LABELS_FOLDER, exist_ok=True)
             lbl_fname = secure_filename(label_file.filename)
-            lbl_path = os.path.join(LABELS_FOLDER, lbl_fname)
+            lbl_path = os.path.join(UPLOAD_FOLDER, lbl_fname)
             label_file.save(lbl_path)
             original_label = cv2.imread(lbl_path, cv2.IMREAD_GRAYSCALE)
             processed_image, true_mask = load_images(filepath, lbl_path)
 
         try:
             # select model path; use cross-platform path
-            if image_type == 'infrared':
-                model_path = download_model_if_needed("infrared_model.keras")
-            else:
+            model_path = os.path.join(MODEL_FOLDER, f"{image_type}_model.keras")
+            if not os.path.exists(model_path):
                 model_path = download_model_if_needed(f"{image_type}_model.keras")
-
-            if not model_path:
-                return jsonify({'error': f'Model for {image_type} not found. Please add the model to {model_path}'}), 404
+                if not model_path:
+                    return jsonify({'error': f'Model for {image_type} not found'}), 404
 
             try:
+                # Load model with optimized settings
                 model = tf.keras.models.load_model(model_path, compile=False)
+                model._make_predict_function()
 
                 # prepare input tensor
                 input_tensor = tf.expand_dims(processed_image, axis=0)
                 if image_type == 'infrared':
                     input_tensor = tf.image.rgb_to_grayscale(input_tensor)
 
-                prediction = model.predict(input_tensor)
+                # Make prediction with optimized settings
+                with tf.device('/CPU:0'):
+                    prediction = model.predict(input_tensor, verbose=0)
+                
                 prediction_image = prediction[0]
-                pred_arr = prediction_image[:, :,
-                                            0] if prediction_image.ndim == 3 else prediction_image
+                pred_arr = prediction_image[:, :, 0] if prediction_image.ndim == 3 else prediction_image
                 pred_mask = (pred_arr > 0.5).astype(np.uint8)
 
                 # Save prediction image
@@ -224,7 +226,7 @@ def predict():
                 std_dev = float(np.std(masked_density)
                                 ) if masked_density.size > 0 else 0.0
 
-                # Plot visualizations
+                # Create visualization
                 normed_uint8 = stats_density.astype(np.uint8)
                 plt.figure(figsize=(12, 3))
                 plt.subplot(1, 4, 1)
@@ -280,11 +282,9 @@ def predict():
                     result_data = base64.b64encode(
                         img_file.read()).decode('utf-8')
 
-                # include density graph image
-                density_key = density_b64 if 'density_b64' in locals() else ''
                 return jsonify({
                     'processed_image': result_data,
-                    'density_graph': density_key,
+                    'density_graph': density_b64,
                     'metrics': metrics
                 })
 
@@ -294,7 +294,7 @@ def predict():
 
         except Exception as e:
             traceback.print_exc()
-            return jsonify({'error': f'Error preprocessing image: {str(e)}'}), 500
+            return jsonify({'error': f'Error processing image: {str(e)}'}), 500
 
 
 if __name__ == '__main__':
