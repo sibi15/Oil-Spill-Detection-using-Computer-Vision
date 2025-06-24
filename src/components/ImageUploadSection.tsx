@@ -89,7 +89,7 @@ const ImageUploadSection: React.FC = () => {
         },
       });
     } catch (err: any) {
-      setError(err.response?.data?.error || "An error occurred while processing the image");
+      // log detailed error to console, don't display in UI
       console.error("Upload error:", err.response?.data?.error || err);
     } finally {
       setIsUploading(false);

@@ -14,18 +14,6 @@ import requests
 from dotenv import load_dotenv
 import cv2
 from flask import Flask, request, jsonify
-from flask_cors import CORS
-import os
-import numpy as np
-from skimage.transform import resize
-from PIL import Image
-import io
-import base64
-import tensorflow as tf
-from werkzeug.utils import secure_filename
-import traceback  # for debug exception tracing
-import requests
-from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
@@ -47,8 +35,8 @@ os.makedirs(MODEL_FOLDER, exist_ok=True)
 
 # Model configuration from environment variables
 MODEL_URLS = {
-    'infrared_model.keras': os.getenv('GDRIVE_INFRARED_MODEL_ID', '1azpgoH2M52HQtjNj3V_aeLzy_X5xgsXu'),
-    'sar_model.keras': os.getenv('GDRIVE_SAR_MODEL_ID', '1le5uHObuGbiQKyw_r8p9JgY_6eko-9h1')
+    'infrared_model.keras': os.getenv('GDRIVE_INFRARED_MODEL_URL', 'https://drive.google.com/uc?id=1azpgoH2M52HQtjNj3V_aeLzy_X5xgsXu'),
+    'sar_model.keras': os.getenv('GDRIVE_SAR_MODEL_URL', 'https://drive.google.com/uc?id=1le5uHObuGbiQKyw_r8p9JgY_6eko-9h1')
 }
 
 # Google Drive API configuration
@@ -63,27 +51,60 @@ def download_model_if_needed(model_name: str):
     model_path = os.path.join(MODEL_FOLDER, model_name)
     
     if os.path.exists(model_path):
+        logger.info(f"Model {model_name} already exists locally")
         return model_path
     
     url = MODEL_URLS.get(model_name)
-    if not url or url == f'YOUR_{model_name.upper().replace(".", "_")}_URL_HERE':
+    if not url:
+        logger.error(f"No URL configured for model {model_name}")
         return None
     
-    print(f"Downloading {model_name} from {url}...")
+    logger.info(f"Downloading {model_name} from {url}...")
     
     try:
-        response = requests.get(url, stream=True)
+        # Add headers to handle Google Drive download
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        # First request to get confirmation page
+        response = requests.get(url, headers=headers, allow_redirects=True)
+        if response.status_code != 200:
+            logger.error(f"Failed to get model download page: {response.status_code}")
+            return None
+            
+        # Extract download link from confirmation page
+        download_url = None
+        if 'drive.google.com' in url:
+            # For Google Drive direct download
+            download_url = url.replace('drive.google.com/uc?id=', 'drive.google.com/uc?export=download&id=')
+        else:
+            logger.error("Unsupported download URL format")
+            return None
+            
+        # Download the actual file
+        logger.info(f"Downloading from actual URL: {download_url}")
+        response = requests.get(download_url, headers=headers, stream=True)
         response.raise_for_status()
         
+        # Create model directory if it doesn't exist
+        os.makedirs(MODEL_FOLDER, exist_ok=True)
+        
+        # Write the file in chunks
         with open(model_path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
+                if chunk:
+                    f.write(chunk)
+                    f.flush()
         
-        print(f"Successfully downloaded {model_name}")
+        logger.info(f"Successfully downloaded {model_name}")
         return model_path
         
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error downloading {model_name}: {str(e)}")
+        return None
     except Exception as e:
-        print(f"Error downloading {model_name}: {e}")
+        logger.error(f"Unexpected error downloading {model_name}: {str(e)}")
         return None
 
 def load_images(image_path, label_path=None):
@@ -124,31 +145,36 @@ def resize_mask(mask, target_shape):
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    print("\n=== Received Headers ===")
-    print(request.headers)
+    try:
+        logger.info("Received prediction request")
+        
+        if 'file' not in request.files:
+            logger.error("No file part in request")
+            return jsonify({'error': 'No file part'}), 400
 
-    print("\n=== Received Files ===")
-    print(request.files)
+        file = request.files['file']
+        if file.filename == '':
+            logger.error("No selected file")
+            return jsonify({'error': 'No selected file'}), 400
 
-    print("\n=== Form Data ===")
-    print(request.form)
+        if file:
+            logger.info(f"Processing file: {file.filename}")
+            
+            # Get image type from request
+            image_type = request.form.get('imageType')
+            if not image_type:
+                logger.error("Image type not specified")
+                return jsonify({'error': 'Image type not specified'}), 400
 
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(UPLOAD_FOLDER, filename)
+            os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+            file.save(filepath)
+            logger.info(f"File saved to: {filepath}")
 
-    file = request.files['file']
-    image_type = request.form.get('imageType')
-
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-
-    if file:
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(filepath)
-
-        # read raw grayscale image for plotting and density
-        original_image = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
+            # read raw grayscale image for plotting and density
+            original_image = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
+            logger.info("Successfully read image")
 
         # load processed image and optional true mask
         processed_image = load_images(filepath)
@@ -157,7 +183,7 @@ def predict():
 
         # attempt auto-load static mask
         base = os.path.splitext(filename)[0]
-        lbl_static = os.path.join(LABELS_FOLDER, f"{base}.png")
+        lbl_static = os.path.join(UPLOAD_FOLDER, f"{base}.png")
         if os.path.exists(lbl_static):
             original_label = cv2.imread(lbl_static, cv2.IMREAD_GRAYSCALE)
             processed_image, true_mask = load_images(filepath, lbl_static)
@@ -165,7 +191,7 @@ def predict():
         # override with uploaded label if provided
         label_file = request.files.get('label')
         if label_file:
-            os.makedirs(LABELS_FOLDER, exist_ok=True)
+            os.makedirs(UPLOAD_FOLDER, exist_ok=True)
             lbl_fname = secure_filename(label_file.filename)
             lbl_path = os.path.join(UPLOAD_FOLDER, lbl_fname)
             label_file.save(lbl_path)
@@ -175,28 +201,38 @@ def predict():
         try:
             # select model path; use cross-platform path
             model_path = os.path.join(MODEL_FOLDER, f"{image_type}_model.keras")
+            logger.info(f"Looking for model at: {model_path}")
+            
             if not os.path.exists(model_path):
+                logger.info("Model not found locally, downloading...")
                 model_path = download_model_if_needed(f"{image_type}_model.keras")
                 if not model_path:
+                    logger.error(f"Failed to download model for {image_type}")
                     return jsonify({'error': f'Model for {image_type} not found'}), 404
 
             try:
                 # Load model with optimized settings
+                logger.info(f"Loading model from: {model_path}")
                 model = tf.keras.models.load_model(model_path, compile=False)
                 model._make_predict_function()
+                logger.info("Model loaded successfully")
 
                 # prepare input tensor
                 input_tensor = tf.expand_dims(processed_image, axis=0)
                 if image_type == 'infrared':
                     input_tensor = tf.image.rgb_to_grayscale(input_tensor)
+                    logger.info("Converting to grayscale for infrared image")
 
                 # Make prediction with optimized settings
+                logger.info("Starting prediction...")
                 with tf.device('/CPU:0'):
                     prediction = model.predict(input_tensor, verbose=0)
+                logger.info("Prediction completed")
                 
                 prediction_image = prediction[0]
                 pred_arr = prediction_image[:, :, 0] if prediction_image.ndim == 3 else prediction_image
                 pred_mask = (pred_arr > 0.5).astype(np.uint8)
+                logger.info("Prediction mask generated")
 
                 # Save prediction image
                 result_filename = f"result_{filename}"
@@ -225,33 +261,6 @@ def predict():
                     np.mean(masked_density)) if masked_density.size > 0 else 0.0
                 std_dev = float(np.std(masked_density)
                                 ) if masked_density.size > 0 else 0.0
-
-                # Create visualization
-                normed_uint8 = stats_density.astype(np.uint8)
-                plt.figure(figsize=(12, 3))
-                plt.subplot(1, 4, 1)
-                plt.title('Original Oil Spill')
-                plt.imshow(gray_img, cmap='gray')
-                plt.axis('off')
-                plt.subplot(1, 4, 2)
-                plt.title('True Spill Mask')
-                plt.imshow(ground_truth_mask, cmap='gray')
-                plt.axis('off')
-                plt.subplot(1, 4, 3)
-                plt.title('Predicted Binary Spill Mask')
-                plt.imshow(predicted_mask, cmap='gray')
-                plt.axis('off')
-                plt.subplot(1, 4, 4)
-                plt.title('Density Map (0–100)')
-                img = plt.imshow(normed_uint8, cmap='jet', vmin=0, vmax=100)
-                plt.colorbar(img, ticks=[0, 20, 40, 60, 80, 100])
-                plt.axis('off')
-                buf = io.BytesIO()
-                plt.tight_layout()
-                plt.savefig(buf, format='png')
-                plt.close()
-                buf.seek(0)
-                density_b64 = base64.b64encode(buf.read()).decode('utf-8')
 
                 # Compute metrics
                 intersection = int(np.logical_and(
