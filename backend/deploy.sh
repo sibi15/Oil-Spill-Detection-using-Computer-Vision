@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Set Python version explicitly
+export PYTHON_VERSION=3.8
+
 # Set environment variables
 export PORT=${PORT:-8080}
 export PYTHONUNBUFFERED=${PYTHONUNBUFFERED:-1}
