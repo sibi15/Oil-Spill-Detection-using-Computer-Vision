@@ -13,13 +13,51 @@ import traceback  # for debug exception tracing
 import requests
 from dotenv import load_dotenv
 import cv2
-from flask import Flask, request, jsonify
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})  # Allow all origins for development
+
+# Configuration from environment variables
+UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', '/tmp/uploads')
+RESULTS_FOLDER = os.getenv('RESULTS_FOLDER', '/tmp/results')
+MODEL_FOLDER = os.getenv('MODEL_FOLDER', '/tmp/models')
+OUTPUT_SIZE = (512, 512)
+SAMPLE_SIZE = (256, 256)
+
+# Create necessary directories
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(RESULTS_FOLDER, exist_ok=True)
+os.makedirs(MODEL_FOLDER, exist_ok=True)
+
+# Model configuration from environment variables
+MODEL_URLS = {
+    'infrared_model.keras': os.getenv('GDRIVE_INFRARED_MODEL_URL', 'https://drive.google.com/uc?id=1azpgoH2M52HQtjNj3V_aeLzy_X5xgsXu'),
+    'sar_model.keras': os.getenv('GDRIVE_SAR_MODEL_URL', 'https://drive.google.com/uc?id=1le5uHObuGbiQKyw_r8p9JgY_6eko-9h1')
+}
+
+# Google Drive API configuration
+GDRIVE_API_KEY = os.getenv('GDRIVE_API_KEY', '')
+
+# Server configuration
+PORT = int(os.getenv('PORT', 8080))
+PYTHONUNBUFFERED = os.getenv('PYTHONUNBUFFERED', '1') == '1'
+
+# Load environment variables
+load_dotenv()
+
+app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "*"}})  # Allow all origins for development
 
 # Configuration from environment variables
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', '/tmp/uploads')
@@ -305,6 +343,5 @@ def predict():
             traceback.print_exc()
             return jsonify({'error': f'Error processing image: {str(e)}'}), 500
 
-
-if __name__ == '__main__':
-    app.run(debug=False, port=PORT)
+    if __name__ == '__main__':
+        app.run(debug=False, port=PORT)
