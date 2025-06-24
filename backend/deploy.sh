@@ -11,16 +11,16 @@ export PYTHONUNBUFFERED=${PYTHONUNBUFFERED:-1}
 python3 -m venv venv
 source venv/bin/activate
 
-# Install dependencies with --break-system-packages
-pip install --break-system-packages --no-cache-dir -r requirements.txt
+# Upgrade pip first
+pip install --upgrade pip
+
+# Install dependencies
+pip install --no-cache-dir -r requirements.txt
 
 # Create necessary directories
 mkdir -p /tmp/models
 mkdir -p /tmp/uploads
 mkdir -p /tmp/results
-
-# Install gunicorn in virtual environment
-pip install gunicorn
 
 # Start the application using the virtual environment's Python
 exec venv/bin/gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 300
