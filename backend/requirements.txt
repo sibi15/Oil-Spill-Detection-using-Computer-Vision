@@ -1,5 +1,6 @@
-Flask==2.0.1
-Flask-CORS==3.0.10
+Flask==2.3.3
+Flask-CORS==4.0.0
+Werkzeug==2.3.7
 tensorflow-cpu==2.7.0
 opencv-python-headless==4.5.5.62
 Pillow==8.4.0
