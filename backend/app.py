@@ -12,34 +12,42 @@ import io
 import base64
 import tensorflow as tf
 from werkzeug.utils import secure_filename
-# from flask_wtf.csrf import CSRFProtect
 import traceback  # for debug exception tracing
 import requests
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
-# Set folders
-UPLOAD_FOLDER = '/tmp/uploads'
-RESULTS_FOLDER = '/tmp/results'
-MODEL_FOLDER = 'models'
-LABELS_FOLDER = '/tmp/labels'
+# Configuration from environment variables
+UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', '/tmp/uploads')
+RESULTS_FOLDER = os.getenv('RESULTS_FOLDER', '/tmp/results')
+MODEL_FOLDER = os.getenv('MODEL_FOLDER', '/tmp/models')
 OUTPUT_SIZE = (512, 512)
 SAMPLE_SIZE = (256, 256)
 
+# Create necessary directories
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(RESULTS_FOLDER, exist_ok=True)
 os.makedirs(MODEL_FOLDER, exist_ok=True)
-os.makedirs(LABELS_FOLDER, exist_ok=True)
 
 matplotlib.use('Agg')
 
-# Model URLs - Models uploaded to a cloud storage service
-
+# Model configuration from environment variables
 MODEL_URLS = {
-    'infrared_model.keras': 'https://drive.google.com/uc?export=download&id=1azpgoH2M52HQtjNj3V_aeLzy_X5xgsXu',
-    'sar_model.keras': 'https://drive.google.com/uc?export=download&id=1le5uHObuGbiQKyw_r8p9JgY_6eko-9h1'
+    'infrared_model.keras': os.getenv('GDRIVE_INFRARED_MODEL_ID', '1azpgoH2M52HQtjNj3V_aeLzy_X5xgsXu'),
+    'sar_model.keras': os.getenv('GDRIVE_SAR_MODEL_ID', '1le5uHObuGbiQKyw_r8p9JgY_6eko-9h1')
 }
+
+# Google Drive API configuration
+GDRIVE_API_KEY = os.getenv('GDRIVE_API_KEY', '')
+
+# Server configuration
+PORT = int(os.getenv('PORT', 8080))
+PYTHONUNBUFFERED = os.getenv('PYTHONUNBUFFERED', '1') == '1'
 
 def download_model_if_needed(model_name: str):
     # Download model if it doesn't exist locally
