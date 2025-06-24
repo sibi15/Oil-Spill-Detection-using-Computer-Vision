@@ -1,0 +1,27 @@
+# Python virtual environment
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Dependencies
+node_modules/
+.env
+.env.*
+
+# Logs
+*.log
+logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build files
+dist/
+build/
+*.egg-info/
