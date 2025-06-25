@@ -7,26 +7,31 @@ export PYTHON_VERSION=3.9.16
 export PORT=${PORT:-8080}
 export PYTHONUNBUFFERED=${PYTHONUNBUFFERED:-1}
 
-# Create necessary directories first
+# Create necessary directories
 mkdir -p models
 mkdir -p /tmp/uploads
 mkdir -p /tmp/results
 mkdir -p /tmp/labels
 
-# Create virtual environment
-python3 -m venv venv
+# Create and activate virtual environment
+python -m venv venv
 source venv/bin/activate
 
-# Upgrade pip first
-pip install --upgrade pip --no-cache-dir
+# Upgrade pip and install dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
 
-# Install dependencies with --no-cache-dir to save space
-pip install --no-cache-dir -r requirements.txt
-
-# Download models in a separate step
+# Download models
 python download_models.py
 
-# Set permissions for gunicorn
+# Verify installation
+echo "Checking dependencies..."
+pip list
+python -c "import tensorflow; print('TensorFlow version:', tensorflow.__version__)"
+python -c "import cv2; print('OpenCV version:', cv2.__version__)"
+python -c "import matplotlib; print('Matplotlib version:', matplotlib.__version__)"
+
+# Set executable permissions for gunicorn
 chmod +x venv/bin/gunicorn
 mkdir -p /tmp/models
 mkdir -p /tmp/uploads
