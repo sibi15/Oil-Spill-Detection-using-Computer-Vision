@@ -65,7 +65,7 @@ PYTHONUNBUFFERED = os.getenv('PYTHONUNBUFFERED', '1') == '1'
         return model_path
         
     except Exception as e:
-        print(f"Error downloading {model_name}: {e}")
+        print(f"Downloading {model_name} from {url}...")
         return None
 
 def load_images(image_path, label_path=None):

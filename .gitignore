@@ -55,6 +55,9 @@ coverage/
 
 # Large model files (too big for git)
 backend/models/*.keras
+# Allow SAR model
+!backend/models/sar_model.h5
+# Ignore other model files
 backend/models/*.h5
 backend/models/*.pkl
 
