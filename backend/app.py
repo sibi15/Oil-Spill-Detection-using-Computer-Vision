@@ -12,25 +12,10 @@ from werkzeug.utils import secure_filename
 import traceback  # for debug exception tracing
 import requests
 from dotenv import load_dotenv
-import cv2
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import os
-import numpy as np
-from skimage.transform import resize
-from PIL import Image
-import io
-import base64
-import pickle
-import cloudpickle
+import matplotlib.pyplot as plt
 
 # Set TensorFlow version compatibility
 tf.compat.v1.disable_v2_behavior()
-import tensorflow as tf
-from werkzeug.utils import secure_filename
-import traceback  # for debug exception tracing
-import requests
-from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
@@ -52,25 +37,17 @@ os.makedirs(MODEL_FOLDER, exist_ok=True)
 
 # Model configuration
 MODEL_FOLDER = 'models'
-MODELS = {}
+# Load SAR model
+MODEL_PATH = os.path.join(MODEL_FOLDER, 'sar_model.h5')
 
-# Load models from pickle files
-for model_name in ['infrared_model.pkl', 'sar_model.pkl']:
-    try:
-        model_path = os.path.join(MODEL_FOLDER, model_name)
-        if os.path.exists(model_path):
-            with open(model_path, 'rb') as f:
-                model_data = cloudpickle.load(f)
-                # The model is already loaded with weights, no need to reconstruct
-                model = model_data['model']
-                MODELS[model_name.split('_')[0]] = model
-                print(f"Successfully loaded {model_name}")
-        else:
-            print(f"Warning: {model_name} not found. Please run download_and_convert_models.py first.")
-    except Exception as e:
-        print(f"Error loading {model_name}: {e}")
-    except Exception as e:
-        print(f"Error loading {model_name}: {e}")
+try:
+    if os.path.exists(MODEL_PATH):
+        model = tf.keras.models.load_model(MODEL_PATH, compile=False)
+        print("Successfully loaded SAR model")
+    else:
+        print("Warning: SAR model not found")
+except Exception as e:
+    print(f"Error loading SAR model: {e}")
 
 # Google Drive API configuration
 GDRIVE_API_KEY = os.getenv('GDRIVE_API_KEY', '')
@@ -194,120 +171,109 @@ def predict():
             processed_image, true_mask = load_images(filepath, lbl_path)
 
         try:
-            # select model path; use cross-platform path
-            model_path = os.path.join(MODEL_FOLDER, f"{image_type}_model.keras")
-            if not os.path.exists(model_path):
-                model_path = download_model_if_needed(f"{image_type}_model.keras")
-                if not model_path:
-                    return jsonify({'error': f'Model for {image_type} not found'}), 404
+            # Use SAR model directly
+            if model is None:
+                return jsonify({'error': 'SAR model not found'}), 404
 
-            try:
-                # Load model with optimized settings
-                model = tf.keras.models.load_model(model_path, compile=False)
-                model._make_predict_function()
+            # Prepare input tensor
+            input_tensor = tf.expand_dims(processed_image, axis=0)
 
-                # prepare input tensor
-                input_tensor = tf.expand_dims(processed_image, axis=0)
-                if image_type == 'infrared':
-                    input_tensor = tf.image.rgb_to_grayscale(input_tensor)
+            # Make prediction with optimized settings
+            with tf.device('/CPU:0'):
+                prediction = model.predict(input_tensor, verbose=0)
+            
+            prediction_image = prediction[0]
+            pred_arr = prediction_image[:, :, 0] if prediction_image.ndim == 3 else prediction_image
+            pred_mask = (pred_arr > 0.5).astype(np.uint8)
 
-                # Make prediction with optimized settings
-                with tf.device('/CPU:0'):
-                    prediction = model.predict(input_tensor, verbose=0)
-                
-                prediction_image = prediction[0]
-                pred_arr = prediction_image[:, :, 0] if prediction_image.ndim == 3 else prediction_image
-                pred_mask = (pred_arr > 0.5).astype(np.uint8)
+            # Save prediction image
+            result_filename = f"result_{filename}"
+            result_path = os.path.join(RESULTS_FOLDER, result_filename)
+            result_img = (pred_arr * 255).astype(np.uint8)
+            result_pil = Image.fromarray(result_img)
+            result_pil.save(result_path)
 
-                # Save prediction image
-                result_filename = f"result_{filename}"
-                result_path = os.path.join(RESULTS_FOLDER, result_filename)
-                result_img = (pred_arr * 255).astype(np.uint8)
-                result_pil = Image.fromarray(result_img)
-                result_pil.save(result_path)
+            # Convert input image to grayscale
+            img_arr = processed_image.numpy()
+            gray_img = img_arr.mean(axis=2)
 
-                # Convert input image to grayscale
-                img_arr = processed_image.numpy()
-                gray_img = img_arr.mean(axis=2)
+            # True mask binarized
+            if true_mask is not None:
+                ground_truth_mask = (
+                    true_mask.numpy().squeeze() > 0).astype(np.uint8)
+            else:
+                ground_truth_mask = (pred_arr > 0.5).astype(np.uint8)
 
-                # True mask binarized
-                if true_mask is not None:
-                    ground_truth_mask = (
-                        true_mask.numpy().squeeze() > 0).astype(np.uint8)
-                else:
-                    ground_truth_mask = (pred_arr > 0.5).astype(np.uint8)
+            predicted_mask = (pred_arr > 0.5).astype(np.uint8)
 
-                predicted_mask = (pred_arr > 0.5).astype(np.uint8)
+            # Density map and stats
+            stats_density = gray_img * predicted_mask * 100.0
+            masked_density = stats_density[predicted_mask > 0]
+            mean_intensity = float(
+                np.mean(masked_density)) if masked_density.size > 0 else 0.0
+            std_dev = float(np.std(masked_density)) if masked_density.size > 0 else 0.0
 
-                # Density map and stats
-                stats_density = gray_img * predicted_mask * 100.0
-                masked_density = stats_density[predicted_mask > 0]
-                mean_intensity = float(
-                    np.mean(masked_density)) if masked_density.size > 0 else 0.0
-                std_dev = float(np.std(masked_density)
-                                ) if masked_density.size > 0 else 0.0
+            # Create visualization
+            normed_uint8 = stats_density.astype(np.uint8)
+            plt.figure(figsize=(12, 3))
+            plt.subplot(1, 4, 1)
+            plt.title('Original Oil Spill')
+            plt.imshow(gray_img, cmap='gray')
+            plt.axis('off')
+            plt.subplot(1, 4, 2)
+            plt.title('True Spill Mask')
+            plt.imshow(ground_truth_mask, cmap='gray')
+            plt.axis('off')
+            plt.subplot(1, 4, 3)
+            plt.title('Predicted Binary Spill Mask')
+            plt.imshow(predicted_mask, cmap='gray')
+            plt.axis('off')
+            plt.subplot(1, 4, 4)
+            plt.title('Density Map (0–100)')
+            img = plt.imshow(normed_uint8, cmap='jet', vmin=0, vmax=100)
+            plt.colorbar(img, ticks=[0, 20, 40, 60, 80, 100])
+            plt.axis('off')
+            buf = io.BytesIO()
+            plt.tight_layout()
+            plt.savefig(buf, format='png')
+            plt.close()
+            buf.seek(0)
+            density_b64 = base64.b64encode(buf.read()).decode('utf-8')
 
-                # Create visualization
-                normed_uint8 = stats_density.astype(np.uint8)
-                plt.figure(figsize=(12, 3))
-                plt.subplot(1, 4, 1)
-                plt.title('Original Oil Spill')
-                plt.imshow(gray_img, cmap='gray')
-                plt.axis('off')
-                plt.subplot(1, 4, 2)
-                plt.title('True Spill Mask')
-                plt.imshow(ground_truth_mask, cmap='gray')
-                plt.axis('off')
-                plt.subplot(1, 4, 3)
-                plt.title('Predicted Binary Spill Mask')
-                plt.imshow(predicted_mask, cmap='gray')
-                plt.axis('off')
-                plt.subplot(1, 4, 4)
-                plt.title('Density Map (0–100)')
-                img = plt.imshow(normed_uint8, cmap='jet', vmin=0, vmax=100)
-                plt.colorbar(img, ticks=[0, 20, 40, 60, 80, 100])
-                plt.axis('off')
-                buf = io.BytesIO()
-                plt.tight_layout()
-                plt.savefig(buf, format='png')
-                plt.close()
-                buf.seek(0)
-                density_b64 = base64.b64encode(buf.read()).decode('utf-8')
+            # Compute metrics
+            intersection = int(np.logical_and(
+                ground_truth_mask, predicted_mask).sum())
+            union = int(np.logical_or(
+                ground_truth_mask, predicted_mask).sum())
+            iou = intersection / (union + 1e-6)
+            dice = float(dice_coefficient(
+                ground_truth_mask, predicted_mask))
+            precision = intersection / (predicted_mask.sum() + 1e-6)
+            recall = intersection / (ground_truth_mask.sum() + 1e-6)
+            spill_pixels = int(np.count_nonzero(ground_truth_mask))
+            total_pixels = ground_truth_mask.size
+            spill_area = float(spill_pixels / total_pixels) * 100
 
-                # Compute metrics
-                intersection = int(np.logical_and(
-                    ground_truth_mask, predicted_mask).sum())
-                union = int(np.logical_or(
-                    ground_truth_mask, predicted_mask).sum())
-                iou = intersection / (union + 1e-6)
-                dice = float(dice_coefficient(
-                    ground_truth_mask, predicted_mask))
-                precision = intersection / (predicted_mask.sum() + 1e-6)
-                recall = intersection / (ground_truth_mask.sum() + 1e-6)
-                spill_pixels = int(np.count_nonzero(ground_truth_mask))
-                total_pixels = ground_truth_mask.size
-                spill_area = float(spill_pixels / total_pixels) * 100
+            metrics = {
+                'dice': dice,
+                'iou': iou,
+                'spill_pixels': spill_pixels,
+                'spill_area': spill_area,
+                'precision': float(precision),
+                'recall': float(recall),
+                'mean_intensity': mean_intensity,
+                'standard_deviation': std_dev
+            }
 
-                metrics = {
-                    'dice': dice,
-                    'iou': iou,
-                    'spill_pixels': spill_pixels,
-                    'spill_area': spill_area,
-                    'precision': float(precision),
-                    'recall': float(recall),
-                    'mean_intensity': mean_intensity,
-                    'standard_deviation': std_dev
-                }
+            with open(result_path, 'rb') as img_file:
+                result_data = base64.b64encode(
+                    img_file.read()).decode('utf-8')
 
-                with open(result_path, 'rb') as img_file:
-                    result_data = base64.b64encode(
-                        img_file.read()).decode('utf-8')
-
-                return jsonify({
-                    'processed_image': result_data,
-                    'density_graph': density_b64,
-                    'metrics': metrics
-                })
+            return jsonify({
+                'processed_image': result_data,
+                'density_graph': density_b64,
+                'metrics': metrics
+            })
 
             except Exception as e:
                 traceback.print_exc()
