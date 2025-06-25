@@ -49,25 +49,9 @@ try:
 except Exception as e:
     print(f"Error loading SAR model: {e}")
 
-# Google Drive API configuration
-GDRIVE_API_KEY = os.getenv('GDRIVE_API_KEY', '')
-
 # Server configuration
 PORT = int(os.getenv('PORT', 8080))
 PYTHONUNBUFFERED = os.getenv('PYTHONUNBUFFERED', '1') == '1'
-
-def download_model_if_needed(model_name: str):
-    # Download model if it doesn't exist locally
-    model_path = os.path.join(MODEL_FOLDER, model_name)
-    
-    if os.path.exists(model_path):
-        return model_path
-    
-    url = MODEL_URLS.get(model_name)
-    if not url or url == f'YOUR_{model_name.upper().replace(".", "_")}_URL_HERE':
-        return None
-    
-    print(f"Downloading {model_name} from {url}...")
     
     try:
         response = requests.get(url, stream=True)
