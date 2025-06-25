@@ -21,8 +21,9 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Download models
-python download_models.py
+# Copy model from repository
+mkdir -p models
+cp sar_model.h5 models/
 
 # Verify installation
 echo "Checking dependencies..."
