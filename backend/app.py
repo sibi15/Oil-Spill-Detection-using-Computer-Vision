@@ -21,6 +21,11 @@ from skimage.transform import resize
 from PIL import Image
 import io
 import base64
+import pickle
+import cloudpickle
+
+# Set TensorFlow version compatibility
+tf.compat.v1.disable_v2_behavior()
 import tensorflow as tf
 from werkzeug.utils import secure_filename
 import traceback  # for debug exception tracing
@@ -45,11 +50,27 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(RESULTS_FOLDER, exist_ok=True)
 os.makedirs(MODEL_FOLDER, exist_ok=True)
 
-# Model configuration from environment variables
-MODEL_URLS = {
-    'infrared_model.keras': os.getenv('GDRIVE_INFRARED_MODEL_ID', '1azpgoH2M52HQtjNj3V_aeLzy_X5xgsXu'),
-    'sar_model.keras': os.getenv('GDRIVE_SAR_MODEL_ID', '1le5uHObuGbiQKyw_r8p9JgY_6eko-9h1')
-}
+# Model configuration
+MODEL_FOLDER = 'models'
+MODELS = {}
+
+# Load models from pickle files
+for model_name in ['infrared_model.pkl', 'sar_model.pkl']:
+    try:
+        model_path = os.path.join(MODEL_FOLDER, model_name)
+        if os.path.exists(model_path):
+            with open(model_path, 'rb') as f:
+                model_data = cloudpickle.load(f)
+                # The model is already loaded with weights, no need to reconstruct
+                model = model_data['model']
+                MODELS[model_name.split('_')[0]] = model
+                print(f"Successfully loaded {model_name}")
+        else:
+            print(f"Warning: {model_name} not found. Please run download_and_convert_models.py first.")
+    except Exception as e:
+        print(f"Error loading {model_name}: {e}")
+    except Exception as e:
+        print(f"Error loading {model_name}: {e}")
 
 # Google Drive API configuration
 GDRIVE_API_KEY = os.getenv('GDRIVE_API_KEY', '')

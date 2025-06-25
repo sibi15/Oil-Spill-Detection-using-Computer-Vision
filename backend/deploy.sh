@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set Python version explicitly
-export PYTHON_VERSION=3.9.16
+export PYTHON_VERSION=3.10.13
 
 # Set environment variables
 export PORT=${PORT:-8080}
