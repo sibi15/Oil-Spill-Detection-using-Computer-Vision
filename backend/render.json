@@ -7,14 +7,14 @@
       "buildCommand": "bash deploy.sh",
       "startCommand": "gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 300",
       "env": {
-        "PYTHON_VERSION": "3.8.13",
+        "PYTHON_VERSION": "3.9.16",
         "PORT": "8080",
         "PYTHONUNBUFFERED": "1",
         "GDRIVE_SAR_MODEL_ID": "${GDRIVE_SAR_MODEL_ID}",
         "GDRIVE_INFRARED_MODEL_ID": "${GDRIVE_INFRARED_MODEL_ID}"
       },
       "python": {
-        "version": "3.8.13"
+        "version": "3.9.16"
       }
     }
   ]
