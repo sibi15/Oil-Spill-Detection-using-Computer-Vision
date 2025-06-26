@@ -157,11 +157,17 @@ input_details = None
 output_details = None
 
 # Server configuration
-PORT = int(os.getenv('PORT', 8080))
-app.config['SERVER_NAME'] = os.getenv('SERVER_NAME', f'localhost:{PORT}')
+PORT = 8080
+app.config['SERVER_NAME'] = os.getenv('SERVER_NAME', 'oil-spill-backend.onrender.com')
 app.config['PREFERRED_URL_SCHEME'] = 'https'
 app.config['ENV'] = 'production'
 app.config['DEBUG'] = False
+
+# Ensure directories exist
+os.makedirs('uploads', exist_ok=True)
+os.makedirs('results', exist_ok=True)
+os.makedirs('models', exist_ok=True)
+os.makedirs('labels', exist_ok=True)
 PYTHONUNBUFFERED = os.getenv('PYTHONUNBUFFERED', '0')  # Disable unbuffered output to reduce memory overhead
 
 def download_model_if_needed(model_name: str):
