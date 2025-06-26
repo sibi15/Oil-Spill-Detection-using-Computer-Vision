@@ -47,7 +47,7 @@ LOCAL_MODEL_PATH = os.path.join(MODEL_FOLDER, 'sar_model.keras')
 
 # For deployment on Render - model will be downloaded from Google Drive
 MODEL_DOWNLOAD_URL = 'https://drive.google.com/uc?id=1Q0lN2ZCRygp6iPMmnYN6eM3whVObGsWO'
-DEPLOY_MODEL_PATH = os.path.join('/models', 'sar_model.keras')
+DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'sar_model.keras')
 
 def download_model():
     """Download model from cloud storage if MODEL_DOWNLOAD_URL is set"""
@@ -56,7 +56,7 @@ def download_model():
     
     try:
         logger.info(f"Downloading model from {MODEL_DOWNLOAD_URL}")
-        os.makedirs('/models', exist_ok=True)
+        os.makedirs(os.path.dirname(DEPLOY_MODEL_PATH), exist_ok=True)
         
         response = requests.get(MODEL_DOWNLOAD_URL, stream=True)
         response.raise_for_status()
