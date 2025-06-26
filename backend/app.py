@@ -12,21 +12,26 @@ from werkzeug.utils import secure_filename
 import traceback  # for debug exception tracing
 import requests
 from dotenv import load_dotenv
-import matplotlib.pyplot as plt
+import logging
+import matplotlib
+matplotlib.use('Agg')  # Set backend to non-interactive
 
-# Set TensorFlow version compatibility
-tf.compat.v1.disable_v2_behavior()
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-# Load environment variables
-load_dotenv()
-
+# Initialize Flask app
 app = Flask(__name__)
 CORS(app)
 
-# Configuration from environment variables
+# Configuration
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', '/tmp/uploads')
 RESULTS_FOLDER = os.getenv('RESULTS_FOLDER', '/tmp/results')
-MODEL_FOLDER = os.getenv('MODEL_FOLDER', '/tmp/models')
+MODEL_FOLDER = os.getenv('MODEL_FOLDER', 'models')
+LABELS_FOLDER = os.getenv('LABELS_FOLDER', '/tmp/labels')
 OUTPUT_SIZE = (512, 512)
 SAMPLE_SIZE = (256, 256)
 
@@ -34,24 +39,67 @@ SAMPLE_SIZE = (256, 256)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(RESULTS_FOLDER, exist_ok=True)
 os.makedirs(MODEL_FOLDER, exist_ok=True)
+os.makedirs(LABELS_FOLDER, exist_ok=True)
 
 # Model configuration
-MODEL_FOLDER = 'models'
-# Load SAR model
-MODEL_PATH = os.path.join(MODEL_FOLDER, 'sar_model.h5')
+# For local development
+LOCAL_MODEL_PATH = os.path.join(MODEL_FOLDER, 'sar_model.keras')
+
+# For deployment on Render - model will be downloaded from Google Drive
+MODEL_DOWNLOAD_URL = 'https://drive.google.com/uc?id=1Q0lN2ZCRygp6iPMmnYN6eM3whVObGsWO'
+DEPLOY_MODEL_PATH = os.path.join('/models', 'sar_model.keras')
+
+def download_model():
+    """Download model from cloud storage if MODEL_DOWNLOAD_URL is set"""
+    if not MODEL_DOWNLOAD_URL:
+        return False
+    
+    try:
+        logger.info(f"Downloading model from {MODEL_DOWNLOAD_URL}")
+        os.makedirs('/models', exist_ok=True)
+        
+        response = requests.get(MODEL_DOWNLOAD_URL, stream=True)
+        response.raise_for_status()
+        
+        with open(DEPLOY_MODEL_PATH, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        
+        logger.info(f"Successfully downloaded model to {DEPLOY_MODEL_PATH}")
+        return True
+    except Exception as e:
+        logger.error(f"Error downloading model: {str(e)}")
+        return False
 
 try:
-    if os.path.exists(MODEL_PATH):
-        model = tf.keras.models.load_model(MODEL_PATH, compile=False)
-        print("Successfully loaded SAR model")
+    # Try local path first (for development)
+    if os.path.exists(LOCAL_MODEL_PATH):
+        model = tf.keras.models.load_model(LOCAL_MODEL_PATH, compile=False)
+        logger.info(f"Successfully loaded local model from {LOCAL_MODEL_PATH}")
+    # Try downloading model for deployment
+    elif MODEL_DOWNLOAD_URL:
+        if download_model():
+            model = tf.keras.models.load_model(DEPLOY_MODEL_PATH, compile=False)
+            logger.info(f"Successfully loaded downloaded model from {DEPLOY_MODEL_PATH}")
+        else:
+            raise Exception("Failed to download model")
     else:
-        print("Warning: SAR model not found")
+        logger.error(f"Model not found at {LOCAL_MODEL_PATH} and no download URL provided")
+        raise FileNotFoundError(f"Model not found at {LOCAL_MODEL_PATH} and no download URL provided")
 except Exception as e:
-    print(f"Error loading SAR model: {e}")
+    logger.error(f"Error loading model: {str(e)}")
+    raise e
 
 # Server configuration
 PORT = int(os.getenv('PORT', 8080))
 PYTHONUNBUFFERED = os.getenv('PYTHONUNBUFFERED', '1') == '1'
+
+def download_model_if_needed(model_name: str):
+    # Download model if it doesn't exist locally
+    model_path = os.path.join(MODEL_FOLDER, model_name)
+    
+    if os.path.exists(model_path):
+        return model_path
     
     try:
         response = requests.get(url, stream=True)
@@ -65,7 +113,7 @@ PYTHONUNBUFFERED = os.getenv('PYTHONUNBUFFERED', '1') == '1'
         return model_path
         
     except Exception as e:
-        print(f"Downloading {model_name} from {url}...")
+        print(f"Error downloading {model_name}: {e}")
         return None
 
 def load_images(image_path, label_path=None):
@@ -259,14 +307,13 @@ def predict():
                 'metrics': metrics
             })
 
-            except Exception as e:
-                traceback.print_exc()
-                return jsonify({'error': f'Error loading model or making prediction: {str(e)}'}), 500
+        except Exception as e:
+            traceback.print_exc()
+            return jsonify({'error': f'Error loading model or making prediction: {str(e)}'}), 500
 
         except Exception as e:
             traceback.print_exc()
             return jsonify({'error': f'Error processing image: {str(e)}'}), 500
 
-
 if __name__ == '__main__':
-    app.run(debug=False, port=PORT)
+    app.run(debug=False, port=PORT, host='0.0.0.0')
