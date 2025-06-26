@@ -163,6 +163,9 @@ app.config['PREFERRED_URL_SCHEME'] = 'https'
 app.config['ENV'] = 'production'
 app.config['DEBUG'] = False
 
+# Configure Flask to use the correct port
+app.config['SERVER_NAME'] = f'oil-spill-backend.onrender.com:{PORT}'
+
 # Ensure directories exist
 os.makedirs('uploads', exist_ok=True)
 os.makedirs('results', exist_ok=True)
