@@ -46,11 +46,12 @@ os.makedirs(LABELS_FOLDER, exist_ok=True)
 LOCAL_MODEL_PATH = os.path.join(MODEL_FOLDER, 'sar_model.keras')
 
 # For deployment on Render - model will be downloaded from GitHub Releases
-MODEL_DOWNLOAD_URL = 'https://github.com/sibi15/Oil-Spill-Detection-using-Computer-Vision/releases/download/v1.0/sar_model.keras'
-DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'sar_model.keras')
+# Using TensorFlow Lite format for smaller size and better memory usage
+MODEL_DOWNLOAD_URL = 'https://github.com/sibi15/Oil-Spill-Detection-using-Computer-Vision/releases/download/v1.0/sar_model.tflite'
+DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'sar_model.tflite')
 
 def download_model():
-    """Download model from GitHub Releases with memory optimization"""
+    """Download model from GitHub Releases with streaming and memory checks"""
     if not MODEL_DOWNLOAD_URL:
         return False
     
@@ -58,28 +59,45 @@ def download_model():
         logger.info(f"Downloading model from {MODEL_DOWNLOAD_URL}")
         os.makedirs(os.path.dirname(DEPLOY_MODEL_PATH), exist_ok=True)
         
+        # Check available memory before downloading
+        import psutil
+        available_memory = psutil.virtual_memory().available / (1024 * 1024)  # Convert to MB
+        logger.info(f"Available memory before download: {available_memory:.1f} MB")
+        
         # Download with retry logic
         max_retries = 3
         retry_count = 0
         while retry_count < max_retries:
             try:
-                # Download using requests
+                # Download using requests with streaming
                 response = requests.get(MODEL_DOWNLOAD_URL, stream=True, timeout=300)
                 response.raise_for_status()
                 
                 # Get expected file size from headers
                 expected_size = int(response.headers.get('content-length', 0))
                 
-                # Write to file with progress
+                # Write to file using streaming approach
                 with open(DEPLOY_MODEL_PATH, 'wb') as f:
                     downloaded_size = 0
                     for chunk in response.iter_content(chunk_size=8192):
                         if chunk:
+                            # Check memory usage before writing each chunk
+                            current_memory = psutil.virtual_memory().used / (1024 * 1024)
+                            if current_memory > 400:  # Leave some buffer
+                                logger.warning(f"Memory usage too high: {current_memory:.1f} MB")
+                                raise MemoryError("Not enough memory to continue download")
+                                
                             f.write(chunk)
                             downloaded_size += len(chunk)
                             logger.info(f"Download progress: {downloaded_size/1024/1024:.1f} MB / {expected_size/1024/1024:.1f} MB")
-                            # Free memory after each chunk
+                            # Clear buffer after writing
+                            f.flush()
+                            os.fsync(f.fileno())
                             del chunk
+                            
+                            # Check memory usage after writing
+                            current_memory = psutil.virtual_memory().used / (1024 * 1024)
+                            logger.info(f"Memory usage: {current_memory:.1f} MB")
                 
                 # Verify file size
                 if expected_size > 0 and os.path.getsize(DEPLOY_MODEL_PATH) != expected_size:
@@ -87,6 +105,10 @@ def download_model():
                 
                 logger.info(f"Successfully downloaded model to {DEPLOY_MODEL_PATH}")
                 return True
+                
+            except MemoryError as e:
+                logger.error(f"Memory error during download: {str(e)}")
+                return False
                 
             except Exception as e:
                 retry_count += 1
@@ -105,37 +127,27 @@ def download_model():
 try:
     # Try local path first (for development)
     if os.path.exists(LOCAL_MODEL_PATH):
-        # Load model with memory optimization
-        model = tf.keras.models.load_model(
-            LOCAL_MODEL_PATH,
-            compile=False,
-            custom_objects=None,
-            options=tf.saved_model.LoadOptions(experimental_io_device='/job:localhost')
-        )
+        # Load TensorFlow Lite model
+        interpreter = tf.lite.Interpreter(model_path=LOCAL_MODEL_PATH)
+        interpreter.allocate_tensors()
         logger.info(f"Successfully loaded local model from {LOCAL_MODEL_PATH}")
         
     # Try downloading model for deployment
     elif MODEL_DOWNLOAD_URL:
         if download_model():
-            # Load model with memory optimization
-            model = tf.keras.models.load_model(
-                DEPLOY_MODEL_PATH,
-                compile=False,
-                custom_objects=None,
-                options=tf.saved_model.LoadOptions(experimental_io_device='/job:localhost')
-            )
+            # Load TensorFlow Lite model
+            interpreter = tf.lite.Interpreter(model_path=DEPLOY_MODEL_PATH)
+            interpreter.allocate_tensors()
             logger.info(f"Successfully loaded downloaded model from {DEPLOY_MODEL_PATH}")
         else:
             raise Exception("Failed to download model")
     else:
         raise Exception("No model available")
 
-    # Optimize model for memory usage
-    model._set_inputs(tf.zeros((1, *SAMPLE_SIZE, 3)))  # Set input shape
-    model._layers = []  # Clear layers to save memory
-    model._layers = None  # Set to None for garbage collection
-    tf.keras.backend.clear_session()  # Clear session to free memory
-    logger.info("Model memory optimized")
+    # Get model input and output details
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+    logger.info("Model loaded and optimized for TensorFlow Lite")
 except Exception as e:
     logger.error(f"Error loading model: {str(e)}")
     raise e
