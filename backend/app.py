@@ -50,7 +50,7 @@ MODEL_DOWNLOAD_URL = 'https://drive.google.com/uc?id=1Q0lN2ZCRygp6iPMmnYN6eM3whV
 DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'sar_model.keras')
 
 def download_model():
-    """Download model from cloud storage if MODEL_DOWNLOAD_URL is set"""
+    """Download model from Google Drive with improved reliability"""
     if not MODEL_DOWNLOAD_URL:
         return False
     
@@ -58,15 +58,56 @@ def download_model():
         logger.info(f"Downloading model from {MODEL_DOWNLOAD_URL}")
         os.makedirs(os.path.dirname(DEPLOY_MODEL_PATH), exist_ok=True)
         
-        response = requests.get(MODEL_DOWNLOAD_URL, stream=True)
-        response.raise_for_status()
+        # Google Drive URL handling
+        file_id = MODEL_DOWNLOAD_URL.split('id=')[1]
+        url = f'https://drive.google.com/uc?id={file_id}'
         
-        with open(DEPLOY_MODEL_PATH, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
+        # First request to get confirmation page
+        session = requests.Session()
+        response = session.get(url, stream=True)
         
-        logger.info(f"Successfully downloaded model to {DEPLOY_MODEL_PATH}")
-        return True
+        if 'confirm' in response.text:
+            # If there's a confirmation page, get the confirmation token
+            confirm_token = response.text.split('confirm=')[1].split('">')[0]
+            url = f'https://drive.google.com/uc?export=download&id={file_id}&confirm={confirm_token}'
+            
+        # Download with retry logic
+        max_retries = 3
+        retry_count = 0
+        while retry_count < max_retries:
+            try:
+                response = session.get(url, stream=True, timeout=300)  # 5 minute timeout
+                response.raise_for_status()
+                
+                # Get expected file size from headers if available
+                expected_size = int(response.headers.get('content-length', 0))
+                
+                # Write to file with progress
+                with open(DEPLOY_MODEL_PATH, 'wb') as f:
+                    downloaded_size = 0
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded_size += len(chunk)
+                            logger.info(f"Download progress: {downloaded_size/1024/1024:.1f} MB / {expected_size/1024/1024:.1f} MB")
+                
+                # Verify file size
+                if expected_size > 0 and os.path.getsize(DEPLOY_MODEL_PATH) != expected_size:
+                    raise Exception(f"Downloaded file size mismatch. Expected: {expected_size} bytes, Got: {os.path.getsize(DEPLOY_MODEL_PATH)} bytes")
+                
+                logger.info(f"Successfully downloaded model to {DEPLOY_MODEL_PATH}")
+                return True
+                
+            except Exception as e:
+                retry_count += 1
+                logger.warning(f"Download attempt {retry_count}/{max_retries} failed: {str(e)}")
+                if retry_count >= max_retries:
+                    raise
+                
+                # Wait before retry
+                import time
+                time.sleep(2 * retry_count)
+    
     except Exception as e:
         logger.error(f"Error downloading model: {str(e)}")
         return False
