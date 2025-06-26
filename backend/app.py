@@ -158,8 +158,10 @@ output_details = None
 
 # Server configuration
 PORT = int(os.getenv('PORT', 8080))
-app.config['SERVER_NAME'] = f'localhost:{PORT}'
+app.config['SERVER_NAME'] = os.getenv('SERVER_NAME', f'localhost:{PORT}')
 app.config['PREFERRED_URL_SCHEME'] = 'https'
+app.config['ENV'] = 'production'
+app.config['DEBUG'] = False
 PYTHONUNBUFFERED = os.getenv('PYTHONUNBUFFERED', '0')  # Disable unbuffered output to reduce memory overhead
 
 def download_model_if_needed(model_name: str):
