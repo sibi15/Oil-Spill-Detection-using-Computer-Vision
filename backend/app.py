@@ -50,7 +50,7 @@ MODEL_DOWNLOAD_URL = 'https://github.com/sibi15/Oil-Spill-Detection-using-Comput
 DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'sar_model.keras')
 
 def download_model():
-    """Download model from GitHub Releases"""
+    """Download model from GitHub Releases with memory optimization"""
     if not MODEL_DOWNLOAD_URL:
         return False
     
@@ -78,6 +78,8 @@ def download_model():
                             f.write(chunk)
                             downloaded_size += len(chunk)
                             logger.info(f"Download progress: {downloaded_size/1024/1024:.1f} MB / {expected_size/1024/1024:.1f} MB")
+                            # Free memory after each chunk
+                            del chunk
                 
                 # Verify file size
                 if expected_size > 0 and os.path.getsize(DEPLOY_MODEL_PATH) != expected_size:
@@ -103,18 +105,37 @@ def download_model():
 try:
     # Try local path first (for development)
     if os.path.exists(LOCAL_MODEL_PATH):
-        model = tf.keras.models.load_model(LOCAL_MODEL_PATH, compile=False)
+        # Load model with memory optimization
+        model = tf.keras.models.load_model(
+            LOCAL_MODEL_PATH,
+            compile=False,
+            custom_objects=None,
+            options=tf.saved_model.LoadOptions(experimental_io_device='/job:localhost')
+        )
         logger.info(f"Successfully loaded local model from {LOCAL_MODEL_PATH}")
+        
     # Try downloading model for deployment
     elif MODEL_DOWNLOAD_URL:
         if download_model():
-            model = tf.keras.models.load_model(DEPLOY_MODEL_PATH, compile=False)
+            # Load model with memory optimization
+            model = tf.keras.models.load_model(
+                DEPLOY_MODEL_PATH,
+                compile=False,
+                custom_objects=None,
+                options=tf.saved_model.LoadOptions(experimental_io_device='/job:localhost')
+            )
             logger.info(f"Successfully loaded downloaded model from {DEPLOY_MODEL_PATH}")
         else:
             raise Exception("Failed to download model")
     else:
-        logger.error(f"Model not found at {LOCAL_MODEL_PATH} and no download URL provided")
-        raise FileNotFoundError(f"Model not found at {LOCAL_MODEL_PATH} and no download URL provided")
+        raise Exception("No model available")
+
+    # Optimize model for memory usage
+    model._set_inputs(tf.zeros((1, *SAMPLE_SIZE, 3)))  # Set input shape
+    model._layers = []  # Clear layers to save memory
+    model._layers = None  # Set to None for garbage collection
+    tf.keras.backend.clear_session()  # Clear session to free memory
+    logger.info("Model memory optimized")
 except Exception as e:
     logger.error(f"Error loading model: {str(e)}")
     raise e
