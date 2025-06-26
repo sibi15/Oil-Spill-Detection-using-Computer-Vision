@@ -161,6 +161,8 @@ output_details = None
 
 # Server configuration
 PORT = int(os.getenv('PORT', 8080))
+app.config['SERVER_NAME'] = f'localhost:{PORT}'
+app.config['PREFERRED_URL_SCHEME'] = 'https'
 PYTHONUNBUFFERED = os.getenv('PYTHONUNBUFFERED', '0')  # Disable unbuffered output to reduce memory overhead
 
 def download_model_if_needed(model_name: str):
@@ -389,4 +391,4 @@ def predict():
             return jsonify({'error': f'Error processing image: {str(e)}'}), 500
 
 if __name__ == '__main__':
-    app.run(debug=False, port=PORT, host='0.0.0.0')
+    app.run(debug=False, port=PORT, host='0.0.0.0', use_reloader=False)

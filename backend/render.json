@@ -5,7 +5,7 @@
       "name": "oil-spill-backend",
       "type": "web",
       "buildCommand": "bash deploy.sh",
-      "startCommand": "gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 300",
+      "startCommand": "gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 300 --preload",
       "env": {
         "PYTHON_VERSION": "3.10.13",
         "PORT": "8080",
