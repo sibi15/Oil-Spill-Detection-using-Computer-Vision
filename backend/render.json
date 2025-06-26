@@ -5,12 +5,10 @@
       "name": "oil-spill-backend",
       "type": "web",
       "buildCommand": "bash deploy.sh",
-      "startCommand": "bash deploy.sh && gunicorn app:app --bind 0.0.0.0:${PORT} --workers 2 --timeout 300 --preload --log-level error",
+      "startCommand": "gunicorn app:app --bind 0.0.0.0:8080 --workers 2 --timeout 300 --log-level error",
       "env": {
         "PYTHON_VERSION": "3.10.13",
         "PORT": "8080",
-        "SERVER_NAME": "oil-spill-backend.onrender.com",
-        "PYTHONUNBUFFERED": "0",
         "MODEL_DOWNLOAD_URL": "https://github.com/sibi15/Oil-Spill-Detection-using-Computer-Vision/releases/download/v1.0/sar_model.tflite"
       },
       "python": {

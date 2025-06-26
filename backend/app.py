@@ -157,14 +157,19 @@ input_details = None
 output_details = None
 
 # Server configuration
-PORT = int(os.getenv('PORT', 8080))
-app.config['SERVER_NAME'] = os.getenv('SERVER_NAME', 'oil-spill-backend.onrender.com')
-app.config['PREFERRED_URL_SCHEME'] = 'https'
+PORT = 8080
 app.config['ENV'] = 'production'
 app.config['DEBUG'] = False
 
-# Configure Flask to use the correct port
-app.config['SERVER_NAME'] = f'oil-spill-backend.onrender.com:{PORT}'
+# Ensure directories exist
+os.makedirs('uploads', exist_ok=True)
+os.makedirs('results', exist_ok=True)
+os.makedirs('models', exist_ok=True)
+os.makedirs('labels', exist_ok=True)
+
+# Initialize Flask app with proper port binding
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=PORT)
 
 # Ensure directories exist
 os.makedirs('uploads', exist_ok=True)
