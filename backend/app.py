@@ -45,12 +45,12 @@ os.makedirs(LABELS_FOLDER, exist_ok=True)
 # For local development
 LOCAL_MODEL_PATH = os.path.join(MODEL_FOLDER, 'sar_model.keras')
 
-# For deployment on Render - model will be downloaded from Google Drive
-MODEL_DOWNLOAD_URL = 'https://drive.google.com/uc?id=1Q0lN2ZCRygp6iPMmnYN6eM3whVObGsWO'
+# For deployment on Render - model will be downloaded from GitHub Releases
+MODEL_DOWNLOAD_URL = 'https://github.com/sibi15/Oil-Spill-Detection-using-Computer-Vision/releases/download/v1.0/sar_model.keras'
 DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'sar_model.keras')
 
 def download_model():
-    """Download model from Google Drive with improved reliability"""
+    """Download model from GitHub Releases"""
     if not MODEL_DOWNLOAD_URL:
         return False
     
@@ -58,28 +58,16 @@ def download_model():
         logger.info(f"Downloading model from {MODEL_DOWNLOAD_URL}")
         os.makedirs(os.path.dirname(DEPLOY_MODEL_PATH), exist_ok=True)
         
-        # Google Drive URL handling
-        file_id = MODEL_DOWNLOAD_URL.split('id=')[1]
-        url = f'https://drive.google.com/uc?id={file_id}'
-        
-        # First request to get confirmation page
-        session = requests.Session()
-        response = session.get(url, stream=True)
-        
-        if 'confirm' in response.text:
-            # If there's a confirmation page, get the confirmation token
-            confirm_token = response.text.split('confirm=')[1].split('">')[0]
-            url = f'https://drive.google.com/uc?export=download&id={file_id}&confirm={confirm_token}'
-            
         # Download with retry logic
         max_retries = 3
         retry_count = 0
         while retry_count < max_retries:
             try:
-                response = session.get(url, stream=True, timeout=300)  # 5 minute timeout
+                # Download using requests
+                response = requests.get(MODEL_DOWNLOAD_URL, stream=True, timeout=300)
                 response.raise_for_status()
                 
-                # Get expected file size from headers if available
+                # Get expected file size from headers
                 expected_size = int(response.headers.get('content-length', 0))
                 
                 # Write to file with progress
