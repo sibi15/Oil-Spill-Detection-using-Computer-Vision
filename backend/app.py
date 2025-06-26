@@ -5,9 +5,8 @@ import os
 import numpy as np
 from skimage.transform import resize
 from PIL import Image
-import io
-import base64
 import tensorflow as tf
+from tensorflow.lite.python.interpreter import Interpreter
 from werkzeug.utils import secure_filename
 import traceback  # for debug exception tracing
 import requests
@@ -141,8 +140,8 @@ def get_model():
                 if not download_model():
                     raise Exception("Failed to download model")
             
-            # Load model
-            interpreter = tf.lite.Interpreter(model_path=DEPLOY_MODEL_PATH)
+            # Load model using TensorFlow's built-in TFLite support
+            interpreter = Interpreter(model_path=DEPLOY_MODEL_PATH)
             interpreter.allocate_tensors()
             input_details = interpreter.get_input_details()
             output_details = interpreter.get_output_details()
