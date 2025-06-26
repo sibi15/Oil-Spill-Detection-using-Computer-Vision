@@ -79,26 +79,28 @@ def download_model():
                 # Write to file using streaming approach
                 with open(DEPLOY_MODEL_PATH, 'wb') as f:
                     downloaded_size = 0
-                    for chunk in response.iter_content(chunk_size=8192):
+                    # Use larger chunk size for better efficiency
+                    for chunk in response.iter_content(chunk_size=65536):
                         if chunk:
                             # Check memory usage before writing each chunk
                             current_memory = psutil.virtual_memory().used / (1024 * 1024)
-                            if current_memory > 400:  # Leave some buffer
+                            # Increase memory threshold to 800MB
+                            if current_memory > 800:  # Leave some buffer
                                 logger.warning(f"Memory usage too high: {current_memory:.1f} MB")
                                 raise MemoryError("Not enough memory to continue download")
                                 
                             f.write(chunk)
                             downloaded_size += len(chunk)
-                            logger.info(f"Download progress: {downloaded_size/1024/1024:.1f} MB / {expected_size/1024/1024:.1f} MB")
+                            
+                            # Only log progress every 1MB to reduce logging overhead
+                            if downloaded_size % (1024 * 1024) == 0:
+                                logger.info(f"Download progress: {downloaded_size/1024/1024:.1f} MB / {expected_size/1024/1024:.1f} MB")
+                            
                             # Clear buffer after writing
                             f.flush()
                             os.fsync(f.fileno())
                             del chunk
                             
-                            # Check memory usage after writing
-                            current_memory = psutil.virtual_memory().used / (1024 * 1024)
-                            logger.info(f"Memory usage: {current_memory:.1f} MB")
-                
                 # Verify file size
                 if expected_size > 0 and os.path.getsize(DEPLOY_MODEL_PATH) != expected_size:
                     raise Exception(f"Downloaded file size mismatch. Expected: {expected_size} bytes, Got: {os.path.getsize(DEPLOY_MODEL_PATH)} bytes")
@@ -119,42 +121,47 @@ def download_model():
                 # Wait before retry
                 import time
                 time.sleep(2 * retry_count)
+    except Exception as e:
+        logger.error(f"Error downloading model: {str(e)}")
+        return False
     
     except Exception as e:
         logger.error(f"Error downloading model: {str(e)}")
         return False
 
-try:
-    # Try local path first (for development)
-    if os.path.exists(LOCAL_MODEL_PATH):
-        # Load TensorFlow Lite model
-        interpreter = tf.lite.Interpreter(model_path=LOCAL_MODEL_PATH)
-        interpreter.allocate_tensors()
-        logger.info(f"Successfully loaded local model from {LOCAL_MODEL_PATH}")
-        
-    # Try downloading model for deployment
-    elif MODEL_DOWNLOAD_URL:
-        if download_model():
-            # Load TensorFlow Lite model
+# Model loading utilities
+def get_model():
+    """Get or create the TensorFlow Lite model instance"""
+    global interpreter, input_details, output_details
+    
+    if interpreter is None:
+        try:
+            # Download model if needed
+            if not os.path.exists(DEPLOY_MODEL_PATH) and MODEL_DOWNLOAD_URL:
+                if not download_model():
+                    raise Exception("Failed to download model")
+            
+            # Load model
             interpreter = tf.lite.Interpreter(model_path=DEPLOY_MODEL_PATH)
             interpreter.allocate_tensors()
-            logger.info(f"Successfully loaded downloaded model from {DEPLOY_MODEL_PATH}")
-        else:
-            raise Exception("Failed to download model")
-    else:
-        raise Exception("No model available")
+            input_details = interpreter.get_input_details()
+            output_details = interpreter.get_output_details()
+            logger.info("Model loaded and optimized for TensorFlow Lite")
+            
+        except Exception as e:
+            logger.error(f"Error loading model: {str(e)}")
+            raise e
+    
+    return interpreter, input_details, output_details
 
-    # Get model input and output details
-    input_details = interpreter.get_input_details()
-    output_details = interpreter.get_output_details()
-    logger.info("Model loaded and optimized for TensorFlow Lite")
-except Exception as e:
-    logger.error(f"Error loading model: {str(e)}")
-    raise e
+# Initialize model as None - will be loaded on first request
+interpreter = None
+input_details = None
+output_details = None
 
 # Server configuration
 PORT = int(os.getenv('PORT', 8080))
-PYTHONUNBUFFERED = os.getenv('PYTHONUNBUFFERED', '1') == '1'
+PYTHONUNBUFFERED = os.getenv('PYTHONUNBUFFERED', '0')  # Disable unbuffered output to reduce memory overhead
 
 def download_model_if_needed(model_name: str):
     # Download model if it doesn't exist locally
@@ -265,18 +272,22 @@ def predict():
             processed_image, true_mask = load_images(filepath, lbl_path)
 
         try:
-            # Use SAR model directly
-            if model is None:
-                return jsonify({'error': 'SAR model not found'}), 404
-
+            # Get model instance
+            interpreter, input_details, output_details = get_model()
+            
             # Prepare input tensor
             input_tensor = tf.expand_dims(processed_image, axis=0)
-
-            # Make prediction with optimized settings
-            with tf.device('/CPU:0'):
-                prediction = model.predict(input_tensor, verbose=0)
             
-            prediction_image = prediction[0]
+            # Set input tensor
+            interpreter.set_tensor(input_details[0]['index'], input_tensor.numpy())
+            
+            # Run inference
+            interpreter.invoke()
+            
+            # Get output tensor
+            output = interpreter.get_tensor(output_details[0]['index'])
+            
+            prediction_image = output[0]
             pred_arr = prediction_image[:, :, 0] if prediction_image.ndim == 3 else prediction_image
             pred_mask = (pred_arr > 0.5).astype(np.uint8)
 
