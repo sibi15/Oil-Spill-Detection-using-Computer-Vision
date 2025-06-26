@@ -12,8 +12,6 @@ import traceback  # for debug exception tracing
 import requests
 from dotenv import load_dotenv
 import logging
-import matplotlib
-matplotlib.use('Agg')  # Set backend to non-interactive
 
 # Configure logging
 logging.basicConfig(
