@@ -76,33 +76,33 @@ def download_model():
                 # Write to file using streaming approach
                 with open(DEPLOY_MODEL_PATH, 'wb') as f:
                     downloaded_size = 0
-                    # Use larger chunk size for better efficiency
-                    for chunk in response.iter_content(chunk_size=65536):
+                    
+                    # Limit memory usage by processing smaller chunks
+                    for chunk in response.iter_content(chunk_size=chunk_size):
                         if chunk:
-                            # Check memory usage before writing each chunk
                             current_memory = psutil.virtual_memory().used / (1024 * 1024)
-                            # Increase memory threshold to 800MB
-                            if current_memory > 800:  # Leave some buffer
-                                logger.warning(f"Memory usage too high: {current_memory:.1f} MB")
-                                raise MemoryError("Not enough memory to continue download")
+                            if current_memory > 2000:  # Increased threshold slightly
+                                raise MemoryError("Memory usage too high during download")
                                 
                             f.write(chunk)
                             downloaded_size += len(chunk)
                             
-                            # Only log progress every 1MB to reduce logging overhead
+                            # Only log progress for larger chunks
                             if downloaded_size % (1024 * 1024) == 0:
                                 logger.info(f"Download progress: {downloaded_size/1024/1024:.1f} MB / {expected_size/1024/1024:.1f} MB")
                             
-                            # Clear buffer after writing
+                            # Force write to disk to reduce memory usage
                             f.flush()
                             os.fsync(f.fileno())
+                            
+                            # Clear chunk reference
                             del chunk
                             
-                # Verify file size
+                # Verify download size
                 if expected_size > 0 and os.path.getsize(DEPLOY_MODEL_PATH) != expected_size:
-                    raise Exception(f"Downloaded file size mismatch. Expected: {expected_size} bytes, Got: {os.path.getsize(DEPLOY_MODEL_PATH)} bytes")
-                
-                logger.info(f"Successfully downloaded model to {DEPLOY_MODEL_PATH}")
+                    raise Exception("Downloaded file size mismatch")
+                    
+                logger.info("Model downloaded successfully")
                 return True
                 
             except MemoryError as e:
@@ -128,7 +128,7 @@ def download_model():
 
 # Model loading utilities
 def get_model():
-    """Get or create the TensorFlow Lite model instance"""
+    """Get or create the TensorFlow Lite model instance with memory optimization"""
     global interpreter, input_details, output_details
     
     if interpreter is None:
@@ -138,15 +138,21 @@ def get_model():
                 if not download_model():
                     raise Exception("Failed to download model")
             
-            # Load model using TensorFlow's built-in TFLite support
-            interpreter = Interpreter(model_path=DEPLOY_MODEL_PATH)
+            # Load model with memory optimization
+            interpreter = Interpreter(model_path=DEPLOY_MODEL_PATH, num_threads=1)
             interpreter.allocate_tensors()
+            
+            # Get model details
             input_details = interpreter.get_input_details()
             output_details = interpreter.get_output_details()
-            logger.info("Model loaded and optimized for TensorFlow Lite")
+            
+            # Log memory usage
+            current_memory = psutil.virtual_memory().used / (1024 * 1024)
+            logger.info(f"Model loaded successfully. Memory usage: {current_memory:.1f} MB")
             
         except Exception as e:
             logger.error(f"Error loading model: {str(e)}")
+            logger.error(f"Memory usage before error: {psutil.virtual_memory().used / (1024 * 1024):.1f} MB")
             raise e
     
     return interpreter, input_details, output_details
