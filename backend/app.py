@@ -182,6 +182,10 @@ def resize_mask(mask, target_shape):
     return mask
 
 
+@app.route('/')
+def health_check():
+    return jsonify({"status": "healthy", "version": "1.0.0"})
+
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
