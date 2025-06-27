@@ -46,100 +46,17 @@ os.makedirs(LABELS_FOLDER, exist_ok=True)
 LOCAL_MODEL_PATH = os.path.join(MODEL_FOLDER, 'sar_model.keras')
 
 # For deployment on Render - model will be downloaded from GitHub Releases
-# Using TensorFlow Lite format for smaller size and better memory usage
-MODEL_DOWNLOAD_URL = 'https://github.com/sibi15/Oil-Spill-Detection-using-Computer-Vision/releases/download/v1.0/sar_model.tflite'
+# Using TensorFlow Lite# Use local model directly from repository
+MODEL_DOWNLOAD_URL = None  # No need to download
 DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'sar_model.tflite')
 
 def download_model():
-    """Download model from GitHub Releases with streaming and memory checks"""
-    if not MODEL_DOWNLOAD_URL:
-        return False
-    
-    try:
-        logger.info(f"Downloading model from {MODEL_DOWNLOAD_URL}")
-        os.makedirs(os.path.dirname(DEPLOY_MODEL_PATH), exist_ok=True)
-        
-        # Check available memory before downloading
-        import psutil
-        available_memory = psutil.virtual_memory().available / (1024 * 1024)  # Convert to MB
-        logger.info(f"Available memory before download: {available_memory:.1f} MB")
-        
-        # Download with retry logic
-        max_retries = 3
-        retry_count = 0
-        while retry_count < max_retries:
-            try:
-                # Download using requests with streaming
-                response = requests.get(MODEL_DOWNLOAD_URL, stream=True, timeout=300)
-                response.raise_for_status()
-                
-                # Get expected file size from headers
-                # Write to file using streaming approach
-                with open(DEPLOY_MODEL_PATH, 'wb') as f:
-                    downloaded_size = 0
-                    
-                    # Set chunk size to 2KB for better memory management
-                    chunk_size = 2048  # 2KB chunks
-                    
-                    # Get expected file size from headers
-                    expected_size = int(response.headers.get('content-length', 0))
-                    
-                    # Check if we have enough memory for the download
-                    current_memory = psutil.virtual_memory()
-                    if current_memory.available < (expected_size + 500 * 1024 * 1024):  # Reserve 500MB buffer
-                        raise MemoryError(f"Not enough memory available. Available: {current_memory.available / (1024 * 1024):.1f}MB, Required: {(expected_size / (1024 * 1024) + 500):.1f}MB")
-                        
-                    # Limit memory usage by processing smaller chunks
-                    for chunk in response.iter_content(chunk_size=chunk_size):
-                        if chunk:
-                            current_memory = psutil.virtual_memory()
-                            if current_memory.percent > 80:  # Check memory usage percentage
-                                raise MemoryError(f"Memory usage too high: {current_memory.percent:.1f}%")
-                            if current_memory.available < 1000 * 1024 * 1024:  # 1GB minimum available
-                                raise MemoryError(f"Not enough memory available: {current_memory.available / (1024 * 1024):.1f}MB")
-                                raise MemoryError("Memory usage too high during download")
-                                
-                            f.write(chunk)
-                            downloaded_size += len(chunk)
-                            
-                            # Only log progress for larger chunks
-                            if downloaded_size % (1024 * 1024) == 0:
-                                logger.info(f"Download progress: {downloaded_size/1024/1024:.1f} MB / {expected_size/1024/1024:.1f} MB")
-                            
-                            # Force write to disk to reduce memory usage
-                            f.flush()
-                            os.fsync(f.fileno())
-                            
-                            # Clear chunk reference
-                            del chunk
-                            
-                # Verify download size
-                if expected_size > 0 and os.path.getsize(DEPLOY_MODEL_PATH) != expected_size:
-                    raise Exception("Downloaded file size mismatch")
-                    
-                logger.info("Model downloaded successfully")
-                return True
-                
-            except MemoryError as e:
-                logger.error(f"Memory error during download: {str(e)}")
-                return False
-                
-            except Exception as e:
-                retry_count += 1
-                logger.warning(f"Download attempt {retry_count}/{max_retries} failed: {str(e)}")
-                if retry_count >= max_retries:
-                    raise
-                
-                # Wait before retry
-                import time
-                time.sleep(2 * retry_count)
-    except Exception as e:
-        logger.error(f"Error downloading model: {str(e)}")
-        return False
-    
-    except Exception as e:
-        logger.error(f"Error downloading model: {str(e)}")
-        return False
+    """Check if local model exists"""
+    if os.path.exists(DEPLOY_MODEL_PATH):
+        logger.info("Using local model")
+        return True
+    logger.error("Local model not found")
+    return False
 
 # Model loading utilities
 def get_model():
