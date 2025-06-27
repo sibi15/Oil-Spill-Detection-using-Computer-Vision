@@ -14,7 +14,7 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['ENV'] = 'development'
 app.config['DEBUG'] = True
 app.config['CORS_HEADERS'] = 'Content-Type'
-DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'sar_model.tflite')
+DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'sar_model_converted.tflite')
 
 # Ensure directories exist
 os.makedirs('uploads', exist_ok=True)
@@ -96,7 +96,7 @@ LOCAL_MODEL_PATH = os.path.join(MODEL_FOLDER, 'sar_model.keras')
 MODEL_DOWNLOAD_URL = None  # No need to download
 # Use a more reliable path for the model
 # The model should be in the project root directory
-DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'sar_model.tflite')
+DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'sar_model_converted.tflite')
 print(f"Model path: {DEPLOY_MODEL_PATH}")
 print(f"Model exists: {os.path.exists(DEPLOY_MODEL_PATH)}")
 print(f"Current directory: {os.getcwd()}")
