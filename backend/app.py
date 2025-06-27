@@ -3,6 +3,9 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
 import numpy as np
+import psutil
+import requests
+import time
 from skimage.transform import resize
 from PIL import Image
 import tensorflow as tf
@@ -76,6 +79,9 @@ def download_model():
                 # Write to file using streaming approach
                 with open(DEPLOY_MODEL_PATH, 'wb') as f:
                     downloaded_size = 0
+                    
+                    # Set chunk size to 8KB
+                    chunk_size = 8192  # 8KB chunks
                     
                     # Limit memory usage by processing smaller chunks
                     for chunk in response.iter_content(chunk_size=chunk_size):
