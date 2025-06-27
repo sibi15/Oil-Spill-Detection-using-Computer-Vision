@@ -5,7 +5,7 @@ import os
 import logging
 import numpy as np
 import psutil
-from skimage import resize
+from skimage.transform import resize
 import matplotlib.pyplot as plt
 import io
 import base64
