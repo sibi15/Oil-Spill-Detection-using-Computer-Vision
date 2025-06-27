@@ -58,6 +58,7 @@ def get_model():
     
     return interpreter, input_details, output_details
 import tensorflow as tf
+import tensorflow.image as tf_image
 from tensorflow.lite.python.interpreter import Interpreter
 from werkzeug.utils import secure_filename
 import traceback  # for debug exception tracing
@@ -299,7 +300,7 @@ def predict():
             
             if processed_image.shape[0] != target_height or processed_image.shape[1] != target_width:
                 logger.info(f"Resizing input to match model expected shape ({target_height}, {target_width})")
-                processed_image = tf.image.resize(processed_image, (target_height, target_width))
+                processed_image = tf_image.resize(processed_image, (target_height, target_width))
             
             # Ensure correct data type
             processed_image = tf.cast(processed_image, tf.float32)
