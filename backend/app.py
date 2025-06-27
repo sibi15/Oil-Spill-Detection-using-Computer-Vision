@@ -9,7 +9,7 @@ import time
 from skimage.transform import resize
 from PIL import Image
 import tensorflow as tf
-from tensorflow.lite.python.interpreter import Interpreter
+from tensorflow.lite import Interpreter
 from werkzeug.utils import secure_filename
 import traceback  # for debug exception tracing
 import requests
