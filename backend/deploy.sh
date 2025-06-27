@@ -16,8 +16,8 @@ pip install --no-cache-dir -r requirements.txt
 # Create necessary directories
 mkdir -p uploads results models labels
 
-# Copy model file to models directory
-cp models/sar_model.tflite models/
+# Copy model file from project root to models directory
+cp ../models/sar_model.tflite models/
 
 # Set permissions
 chmod -R 755 uploads results models labels

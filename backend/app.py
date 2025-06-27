@@ -48,7 +48,8 @@ LOCAL_MODEL_PATH = os.path.join(MODEL_FOLDER, 'sar_model.keras')
 # For deployment on Render - model will be downloaded from GitHub Releases
 # Using TensorFlow Lite# Use local model directly from repository
 MODEL_DOWNLOAD_URL = None  # No need to download
-DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'sar_model.tflite')
+# Use a more reliable path for the model
+DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'models', 'sar_model.tflite')
 
 def download_model():
     """Check if local model exists"""
