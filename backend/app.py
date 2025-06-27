@@ -240,14 +240,30 @@ def predict():
             # Get model instance
             interpreter, input_details, output_details = get_model()
             
-            # Prepare input tensor
+            # Verify input shape
+            input_shape = input_details[0]['shape']
+            print(f"\n=== Model Input Shape ===")
+            print(f"Expected shape: {input_shape}")
+            print(f"Actual shape: {processed_image.shape}")
+            
+            # Prepare input tensor with correct shape
+            if processed_image.shape != tuple(input_shape[1:]):
+                print(f"Resizing input to match model expected shape")
+                processed_image = tf.image.resize(processed_image, tuple(input_shape[1:2]))
+            
             input_tensor = tf.expand_dims(processed_image, axis=0)
             
             # Set input tensor
             interpreter.set_tensor(input_details[0]['index'], input_tensor.numpy())
             
             # Run inference
-            interpreter.invoke()
+            try:
+                interpreter.invoke()
+            except Exception as e:
+                print(f"\n=== Inference Error Details ===")
+                print(f"Input tensor shape: {input_tensor.shape}")
+                print(f"Input details: {input_details[0]}")
+                raise e
             
             # Get output tensor
             output = interpreter.get_tensor(output_details[0]['index'])
