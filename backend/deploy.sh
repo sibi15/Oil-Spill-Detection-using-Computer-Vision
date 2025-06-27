@@ -5,10 +5,10 @@ export PIP_CACHE_DIR=/tmp/pip-cache
 mkdir -p $PIP_CACHE_DIR
 
 # Install essential packages
-pip install --no-cache-dir flask==2.3.3 flask-cors==4.0.0 gunicorn==21.2.0
+pip install --no-cache-dir flask==2.2.5 flask-cors==4.0.0 gunicorn==21.2.0
 
 # Install TensorFlow packages
-pip install --no-cache-dir tensorflow==2.13.0
+pip install --no-cache-dir tensorflow==2.11.0
 
 # Install remaining packages
 pip install --no-cache-dir -r requirements.txt
@@ -16,12 +16,25 @@ pip install --no-cache-dir -r requirements.txt
 # Create necessary directories
 mkdir -p uploads results models labels
 
-# Copy model file from project root to both locations
-# First copy to backend models directory
-cp ../models/sar_model.tflite models/
+# Verify the model file exists in backend/models directory
+if [ ! -f "models/sar_model.tflite" ]; then
+    echo "Error: Model file not found at models/sar_model.tflite"
+    exit 1
+fi
 
-# Also copy to project root models directory (for relative path)
-cp ../models/sar_model.tflite ../../models/
+# Verify we can read the model file
+if ! test -r "models/sar_model.tflite"; then
+    echo "Error: Model file is not readable"
+    exit 1
+fi
+
+# Verify the model file size is reasonable
+if [ $(stat -c%s "models/sar_model.tflite") -lt 1000 ]; then
+    echo "Error: Model file appears to be corrupted or empty"
+    exit 1
+fi
+
+echo "Model file successfully verified in models directory"
 
 # Set permissions
 chmod -R 755 uploads results models labels

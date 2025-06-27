@@ -50,7 +50,17 @@ LOCAL_MODEL_PATH = os.path.join(MODEL_FOLDER, 'sar_model.keras')
 MODEL_DOWNLOAD_URL = None  # No need to download
 # Use a more reliable path for the model
 # The model should be in the project root directory
-DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'models', 'sar_model.tflite')
+DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'sar_model.tflite')
+
+# Verify model file exists and is readable
+if not os.path.exists(DEPLOY_MODEL_PATH):
+    raise FileNotFoundError(f"Model file not found at {DEPLOY_MODEL_PATH}")
+if not os.access(DEPLOY_MODEL_PATH, os.R_OK):
+    raise PermissionError(f"Cannot read model file at {DEPLOY_MODEL_PATH}")
+
+# Log model file details
+print(f"Using model file: {DEPLOY_MODEL_PATH}")
+print(f"Model file size: {os.path.getsize(DEPLOY_MODEL_PATH)} bytes")
 
 # Create models directory if it doesn't exist
 os.makedirs(os.path.dirname(DEPLOY_MODEL_PATH), exist_ok=True)
