@@ -49,13 +49,24 @@ LOCAL_MODEL_PATH = os.path.join(MODEL_FOLDER, 'sar_model.keras')
 # Using TensorFlow Lite# Use local model directly from repository
 MODEL_DOWNLOAD_URL = None  # No need to download
 # Use a more reliable path for the model
-DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'models', 'sar_model.tflite')
+# The model should be in the project root directory
+DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'models', 'sar_model.tflite')
+
+# Create models directory if it doesn't exist
+os.makedirs(os.path.dirname(DEPLOY_MODEL_PATH), exist_ok=True)
 
 def download_model():
-    """Check if local model exists"""
+    """Check if local model exists and verify it's readable"""
     if os.path.exists(DEPLOY_MODEL_PATH):
-        logger.info("Using local model")
-        return True
+        try:
+            # Try to open and read a small part of the file
+            with open(DEPLOY_MODEL_PATH, 'rb') as f:
+                f.read(1024)  # Read first 1KB
+            logger.info("Using local model")
+            return True
+        except Exception as e:
+            logger.error(f"Error accessing model file: {str(e)}")
+            return False
     logger.error("Local model not found")
     return False
 
