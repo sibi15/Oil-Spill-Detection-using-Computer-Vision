@@ -8,7 +8,7 @@ mkdir -p $PIP_CACHE_DIR
 pip install --no-cache-dir flask==2.2.5 flask-cors==4.0.0 gunicorn==21.2.0
 
 # Install TensorFlow packages
-pip install --no-cache-dir tensorflow==2.11.0
+pip install --no-cache-dir tensorflow==2.13.0
 
 # Install remaining packages
 pip install --no-cache-dir -r requirements.txt
@@ -17,7 +17,7 @@ pip install --no-cache-dir -r requirements.txt
 mkdir -p uploads results models labels
 
 # Verify the model file exists in backend/models directory
-if [ ! -f "models/sar_model.tflite" ]; then
+if [ ! -f "models/sar_model_converted.tflite" ]; then
     echo "Error: Model file not found at models/sar_model.tflite"
     exit 1
 fi
