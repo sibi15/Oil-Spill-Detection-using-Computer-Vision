@@ -247,9 +247,15 @@ def predict():
             print(f"Actual shape: {processed_image.shape}")
             
             # Prepare input tensor with correct shape
-            if processed_image.shape != tuple(input_shape[1:]):
-                print(f"Resizing input to match model expected shape")
-                processed_image = tf.image.resize(processed_image, tuple(input_shape[1:2]))
+            target_height = input_shape[1]
+            target_width = input_shape[2]
+            
+            if processed_image.shape[0] != target_height or processed_image.shape[1] != target_width:
+                print(f"Resizing input to match model expected shape ({target_height}, {target_width})")
+                processed_image = tf.image.resize(processed_image, (target_height, target_width))
+            
+            # Ensure correct data type
+            processed_image = tf.cast(processed_image, tf.float32)
             
             input_tensor = tf.expand_dims(processed_image, axis=0)
             
@@ -263,6 +269,8 @@ def predict():
                 print(f"\n=== Inference Error Details ===")
                 print(f"Input tensor shape: {input_tensor.shape}")
                 print(f"Input details: {input_details[0]}")
+                print(f"Input tensor dtype: {input_tensor.dtype}")
+                print(f"Input tensor min/max: {tf.reduce_min(input_tensor)}, {tf.reduce_max(input_tensor)}")
                 raise e
             
             # Get output tensor
