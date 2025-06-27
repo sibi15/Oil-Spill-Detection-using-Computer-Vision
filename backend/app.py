@@ -91,14 +91,7 @@ def get_model():
             if not os.path.exists(DEPLOY_MODEL_PATH):
                 raise FileNotFoundError(f"Model file not found at {DEPLOY_MODEL_PATH}")
                 
-            # Check if we can read the file
-            try:
-                with open(DEPLOY_MODEL_PATH, 'rb') as f:
-                    f.read(1024)  # Read first 1KB to verify file is readable
-            except Exception as e:
-                raise IOError(f"Failed to read model file: {str(e)}")
-            
-            # Load model with memory optimization
+            # Load model with minimal memory usage
             interpreter = Interpreter(model_path=DEPLOY_MODEL_PATH, num_threads=1)
             interpreter.allocate_tensors()
             
@@ -112,7 +105,6 @@ def get_model():
             
         except Exception as e:
             logger.error(f"Error loading model: {str(e)}")
-            logger.error(f"Memory usage before error: {psutil.virtual_memory().used / (1024 * 1024):.1f} MB")
             raise e
     
     return interpreter, input_details, output_details
@@ -146,29 +138,9 @@ os.makedirs('labels', exist_ok=True)
 # Initialize Flask app with proper port binding
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=PORT)
-PYTHONUNBUFFERED = os.getenv('PYTHONUNBUFFERED', '0')  # Disable unbuffered output to reduce memory overhead
-
-def download_model_if_needed(model_name: str):
-    # Download model if it doesn't exist locally
-    model_path = os.path.join(MODEL_FOLDER, model_name)
-    
-    if os.path.exists(model_path):
-        return model_path
-    
-    try:
-        response = requests.get(url, stream=True)
-        response.raise_for_status()
-        
-        with open(model_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-        
-        print(f"Successfully downloaded {model_name}")
-        return model_path
-        
-    except Exception as e:
-        print(f"Error downloading {model_name}: {e}")
-        return None
+# Remove model download function since we're using local model
+# Model should be included in git repository
+PYTHONUNBUFFERED = os.getenv('PYTHONUNBUFFERED', '1')  # Enable unbuffered output for better logging
 
 def load_images(image_path, label_path=None):
     image = tf.io.read_file(image_path)
@@ -251,12 +223,7 @@ def predict():
         if label_file:
             os.makedirs(LABELS_FOLDER, exist_ok=True)
             lbl_fname = secure_filename(label_file.filename)
-            lbl_path = os.path.join(UPLOAD_FOLDER, lbl_fname)
-            label_file.save(lbl_path)
-            original_label = cv2.imread(lbl_path, cv2.IMREAD_GRAYSCALE)
-            processed_image, true_mask = load_images(filepath, lbl_path)
 
-        try:
             # Get model instance
             interpreter, input_details, output_details = get_model()
             
