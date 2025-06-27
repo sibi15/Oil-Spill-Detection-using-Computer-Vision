@@ -5,6 +5,7 @@ import os
 import logging
 import numpy as np
 import psutil
+from skimage import resize
 
 # Initialize Flask app
 app = Flask(__name__)
