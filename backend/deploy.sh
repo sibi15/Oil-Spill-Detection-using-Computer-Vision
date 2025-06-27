@@ -4,13 +4,7 @@
 export PIP_CACHE_DIR=/tmp/pip-cache
 mkdir -p $PIP_CACHE_DIR
 
-# Install essential packages
-pip install --no-cache-dir flask==2.2.5 flask-cors==4.0.0 gunicorn==21.2.0
-
-# Install TensorFlow packages
-pip install --no-cache-dir tensorflow==2.13.0
-
-# Install remaining packages
+# Install all packages in one command
 pip install --no-cache-dir -r requirements.txt
 
 # Create necessary directories
