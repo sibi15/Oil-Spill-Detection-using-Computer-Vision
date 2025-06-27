@@ -4,6 +4,7 @@ from flask_cors import CORS
 import os
 import logging
 import numpy as np
+import psutil
 
 # Initialize Flask app
 app = Flask(__name__)
