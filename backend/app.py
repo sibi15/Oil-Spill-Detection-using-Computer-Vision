@@ -399,8 +399,8 @@ def predict():
 
 if __name__ == '__main__':
     try:
-        # Get port from environment variable
-        port = int(os.environ.get('PORT', 5001))
+        # Get port from environment variable (Render uses port 8080 by default)
+        port = int(os.environ.get('PORT', 8080))
         
         print(f"\nStarting Flask app on port {port}")
         print(f"Model path: {DEPLOY_MODEL_PATH}")
