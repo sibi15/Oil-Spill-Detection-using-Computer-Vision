@@ -8,8 +8,7 @@
       "startCommand": "gunicorn app:app --bind 0.0.0.0:8080 --workers 2 --timeout 300 --log-level error",
       "env": {
         "PYTHON_VERSION": "3.10.13",
-        "PORT": "8080",
-        "MODEL_DOWNLOAD_URL": "https://github.com/sibi15/Oil-Spill-Detection-using-Computer-Vision/releases/download/v1.0/sar_model.tflite"
+        "PORT": "8080"
       },
       "python": {
         "version": "3.10.13"
