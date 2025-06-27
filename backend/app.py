@@ -74,20 +74,29 @@ def download_model():
                 response.raise_for_status()
                 
                 # Get expected file size from headers
-                expected_size = int(response.headers.get('content-length', 0))
-                
                 # Write to file using streaming approach
                 with open(DEPLOY_MODEL_PATH, 'wb') as f:
                     downloaded_size = 0
                     
-                    # Set chunk size to 8KB
-                    chunk_size = 8192  # 8KB chunks
+                    # Set chunk size to 2KB for better memory management
+                    chunk_size = 2048  # 2KB chunks
                     
+                    # Get expected file size from headers
+                    expected_size = int(response.headers.get('content-length', 0))
+                    
+                    # Check if we have enough memory for the download
+                    current_memory = psutil.virtual_memory()
+                    if current_memory.available < (expected_size + 500 * 1024 * 1024):  # Reserve 500MB buffer
+                        raise MemoryError(f"Not enough memory available. Available: {current_memory.available / (1024 * 1024):.1f}MB, Required: {(expected_size / (1024 * 1024) + 500):.1f}MB")
+                        
                     # Limit memory usage by processing smaller chunks
                     for chunk in response.iter_content(chunk_size=chunk_size):
                         if chunk:
-                            current_memory = psutil.virtual_memory().used / (1024 * 1024)
-                            if current_memory > 2000:  # Increased threshold slightly
+                            current_memory = psutil.virtual_memory()
+                            if current_memory.percent > 80:  # Check memory usage percentage
+                                raise MemoryError(f"Memory usage too high: {current_memory.percent:.1f}%")
+                            if current_memory.available < 1000 * 1024 * 1024:  # 1GB minimum available
+                                raise MemoryError(f"Not enough memory available: {current_memory.available / (1024 * 1024):.1f}MB")
                                 raise MemoryError("Memory usage too high during download")
                                 
                             f.write(chunk)
