@@ -27,10 +27,8 @@ logs/
 .DS_Store
 
 # Models and data
-models/
 *.h5
 *.pb
-*.tflite
 
 # Cache files
 *.cache

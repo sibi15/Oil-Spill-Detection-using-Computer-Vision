@@ -2,12 +2,58 @@ import cv2
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
-import numpy as np
-import psutil
-import requests
-import time
-from skimage.transform import resize
-from PIL import Image
+import logging
+
+# Initialize Flask app
+app = Flask(__name__)
+CORS(app)
+
+# Configuration
+UPLOAD_FOLDER = '/tmp/uploads'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['ENV'] = 'development'
+app.config['DEBUG'] = True
+app.config['CORS_HEADERS'] = 'Content-Type'
+DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'sar_model.tflite')
+
+# Ensure directories exist
+os.makedirs('uploads', exist_ok=True)
+
+# Server configuration
+PORT = 5001
+
+# Model loading utilities
+def get_model():
+    """Get or create the TensorFlow Lite model instance with memory optimization"""
+    global interpreter, input_details, output_details
+    
+    if interpreter is None:
+        try:
+            logger.info(f"Loading model from {DEPLOY_MODEL_PATH}")
+            if not os.path.exists(DEPLOY_MODEL_PATH):
+                logger.error(f"Model file not found at {DEPLOY_MODEL_PATH}")
+                raise FileNotFoundError(f"Model file not found at {DEPLOY_MODEL_PATH}")
+                
+            logger.info("Loading TensorFlow Lite model...")
+            interpreter = Interpreter(model_path=DEPLOY_MODEL_PATH, num_threads=1)
+            interpreter.allocate_tensors()
+            logger.info("Model tensors allocated")
+            
+            # Get model details
+            input_details = interpreter.get_input_details()
+            output_details = interpreter.get_output_details()
+            logger.info(f"Model input details: {input_details}")
+            logger.info(f"Model output details: {output_details}")
+            
+            # Log memory usage
+            current_memory = psutil.virtual_memory().used / (1024 * 1024)
+            logger.info(f"Model loaded successfully. Memory usage: {current_memory:.1f} MB")
+            
+        except Exception as e:
+            logger.error(f"Error loading model: {str(e)}")
+            raise e
+    
+    return interpreter, input_details, output_details
 import tensorflow as tf
 from tensorflow.lite.python.interpreter import Interpreter
 from werkzeug.utils import secure_filename
@@ -25,7 +71,7 @@ logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "OPTIONS"], "allow_headers": "*", "expose_headers": "*"}}, supports_credentials=True)
 
 # Configuration
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', '/tmp/uploads')
@@ -119,9 +165,10 @@ input_details = None
 output_details = None
 
 # Server configuration
-PORT = 8080
-app.config['ENV'] = 'production'
-app.config['DEBUG'] = False
+PORT = 5000
+app.config['ENV'] = 'development'
+app.config['DEBUG'] = True
+app.config['CORS_HEADERS'] = 'Content-Type'
 
 # Ensure directories exist
 os.makedirs('uploads', exist_ok=True)
@@ -184,74 +231,71 @@ def resize_mask(mask, target_shape):
 
 @app.route('/')
 def health_check():
+    logger.info("Health check request received")
     return jsonify({"status": "healthy", "version": "1.0.0"})
 
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
-        print("\n=== Received Headers ===")
-        print(request.headers)
-
-        print("\n=== Received Files ===")
-        print(request.files)
-
-        print("\n=== Form Data ===")
-        print(request.form)
-
+        logger.info("New prediction request received")
+        logger.info(f"Headers: {dict(request.headers)}")
+        logger.info(f"Files: {request.files}")
+        logger.info(f"Form: {request.form}")
+        
+        # Check if file was uploaded
         if 'file' not in request.files:
-            return jsonify({'error': 'No file part'}), 400
-
+            logger.error("No file part in request")
+            return jsonify({'error': 'No file uploaded'}), 400
+        
         file = request.files['file']
-        image_type = request.form.get('imageType')
-
         if file.filename == '':
+            logger.error("Empty file name")
             return jsonify({'error': 'No selected file'}), 400
-
-        if file:
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(UPLOAD_FOLDER, filename)
-            file.save(filepath)
-
-            # read raw grayscale image for plotting and density
-            original_image = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
-
-            # load processed image and optional true mask
-            processed_image = load_images(filepath)
-            true_mask = None
-            original_label = None
-
-            # attempt auto-load static mask
-            base = os.path.splitext(filename)[0]
-            lbl_static = os.path.join(LABELS_FOLDER, f"{base}.png")
-            if os.path.exists(lbl_static):
-                original_label = cv2.imread(lbl_static, cv2.IMREAD_GRAYSCALE)
-                processed_image, true_mask = load_images(filepath, lbl_static)
-
-            # override with uploaded label if provided
-            label_file = request.files.get('label')
-            if label_file:
-                os.makedirs(LABELS_FOLDER, exist_ok=True)
-                lbl_fname = secure_filename(label_file.filename)
-                lbl_path = os.path.join(LABELS_FOLDER, lbl_fname)
-                label_file.save(lbl_path)
-                original_label = cv2.imread(lbl_path, cv2.IMREAD_GRAYSCALE)
-                processed_image, true_mask = load_images(filepath, lbl_path)
-
+        
+        # Get image type
+        image_type = request.form.get('imageType', 'sar')
+        logger.info(f"Processing image type: {image_type}")
+        
+        # Save uploaded file temporarily
+        temp_path = os.path.join('uploads', file.filename)
+        file.save(temp_path)
+        logger.info(f"File saved to: {temp_path}")
+        
+        # Load and preprocess image
+        try:
+            image = cv2.imread(temp_path)
+            if image is None:
+                logger.error(f"Failed to read image from {temp_path}")
+                return jsonify({'error': 'Failed to read image'}), 400
+            
+            # Convert to RGB if needed
+            if len(image.shape) == 2:
+                image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+            elif image.shape[2] == 4:
+                image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGB)
+            else:
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            
+            # Resize to model input size
+            processed_image = cv2.resize(image, (256, 256))
+            processed_image = processed_image.astype(np.float32) / 255.0
+            logger.info(f"Image processed successfully. Shape: {processed_image.shape}")
+            
             # Get model instance
             interpreter, input_details, output_details = get_model()
             
             # Verify input shape
             input_shape = input_details[0]['shape']
-            print(f"\n=== Model Input Shape ===")
-            print(f"Expected shape: {input_shape}")
-            print(f"Actual shape: {processed_image.shape}")
+            logger.info(f"\n=== Model Input Shape ===")
+            logger.info(f"Expected shape: {input_shape}")
+            logger.info(f"Actual shape: {processed_image.shape}")
             
             # Prepare input tensor with correct shape
             target_height = input_shape[1]
             target_width = input_shape[2]
             
             if processed_image.shape[0] != target_height or processed_image.shape[1] != target_width:
-                print(f"Resizing input to match model expected shape ({target_height}, {target_width})")
+                logger.info(f"Resizing input to match model expected shape ({target_height}, {target_width})")
                 processed_image = tf.image.resize(processed_image, (target_height, target_width))
             
             # Ensure correct data type
@@ -261,50 +305,30 @@ def predict():
             
             # Set input tensor
             interpreter.set_tensor(input_details[0]['index'], input_tensor.numpy())
+            logger.info(f"Input tensor set successfully. Shape: {input_tensor.shape}")
             
             # Run inference
             try:
+                logger.info("Starting model inference...")
                 interpreter.invoke()
+                logger.info("Inference completed successfully")
             except Exception as e:
-                print(f"\n=== Inference Error Details ===")
-                print(f"Input tensor shape: {input_tensor.shape}")
-                print(f"Input details: {input_details[0]}")
-                print(f"Input tensor dtype: {input_tensor.dtype}")
-                print(f"Input tensor min/max: {tf.reduce_min(input_tensor)}, {tf.reduce_max(input_tensor)}")
+                logger.error(f"\n=== Inference Error Details ===")
+                logger.error(f"Input tensor shape: {input_tensor.shape}")
+                logger.error(f"Input details: {input_details[0]}")
+                logger.error(f"Input tensor dtype: {input_tensor.dtype}")
+                logger.error(f"Input tensor min/max: {tf.reduce_min(input_tensor)}, {tf.reduce_max(input_tensor)}")
                 raise e
             
             # Get output tensor
             output = interpreter.get_tensor(output_details[0]['index'])
+            logger.info(f"Output tensor shape: {output.shape}")
             
-            prediction_image = output[0]
-            pred_arr = prediction_image[:, :, 0] if prediction_image.ndim == 3 else prediction_image
-            pred_mask = (pred_arr > 0.5).astype(np.uint8)
-
-            # Save prediction image
-            result_filename = f"result_{filename}"
-            result_path = os.path.join(RESULTS_FOLDER, result_filename)
-            result_img = (pred_arr * 255).astype(np.uint8)
-            result_pil = Image.fromarray(result_img)
-            result_pil.save(result_path)
-
-            # Convert input image to grayscale
-            img_arr = processed_image.numpy()
-            gray_img = img_arr.mean(axis=2)
-
-            # True mask binarized
-            if true_mask is not None:
-                ground_truth_mask = (
-                    true_mask.numpy().squeeze() > 0).astype(np.uint8)
-            else:
-                ground_truth_mask = (pred_arr > 0.5).astype(np.uint8)
-
-            predicted_mask = (pred_arr > 0.5).astype(np.uint8)
-
-            # Density map and stats
-            stats_density = gray_img * predicted_mask * 100.0
-            masked_density = stats_density[predicted_mask > 0]
-            mean_intensity = float(
-                np.mean(masked_density)) if masked_density.size > 0 else 0.0
+            # Process output
+            prediction = (output[0] > 0.5).astype(np.uint8)
+            logger.info(f"Prediction processed successfully. Shape: {prediction.shape}")
+            
+            # Calculate metrics
             std_dev = float(np.std(masked_density)) if masked_density.size > 0 else 0.0
 
             # Create visualization
@@ -347,31 +371,60 @@ def predict():
             spill_pixels = int(np.count_nonzero(ground_truth_mask))
             total_pixels = ground_truth_mask.size
             spill_area = float(spill_pixels / total_pixels) * 100
-
             metrics = {
-                'dice': dice,
-                'iou': iou,
-                'spill_pixels': spill_pixels,
-                'spill_area': spill_area,
-                'precision': float(precision),
-                'recall': float(recall),
-                'mean_intensity': mean_intensity,
-                'standard_deviation': std_dev
+                'mean': float(np.mean(prediction)),
+                'std': float(np.std(prediction)),
+                'max': float(np.max(prediction)),
+                'min': float(np.min(prediction))
             }
-
-            with open(result_path, 'rb') as img_file:
-                result_data = base64.b64encode(
-                    img_file.read()).decode('utf-8')
-
+            logger.info(f"Metrics calculated: {metrics}")
+            
+            # Clean up
+            os.remove(temp_path)
+            logger.info(f"Temporary file removed: {temp_path}")
+            
             return jsonify({
-                'processed_image': result_data,
-                'density_graph': density_b64,
-                'metrics': metrics
+                'success': True,
+                'metrics': metrics,
+                'timestamp': time.time()
             })
-
+        
+        except Exception as e:
+            logger.error(f"Error processing image: {str(e)}")
+            raise
+    
     except Exception as e:
-        traceback.print_exc()
+        logger.error(f"Error in predict endpoint: {str(e)}")
         return jsonify({'error': f'Error processing image: {str(e)}'}), 500
 
 if __name__ == '__main__':
-    app.run(debug=False, port=PORT, host='0.0.0.0', use_reloader=False)
+    try:
+        print(f"\nStarting Flask app on port {PORT}")
+        print(f"Model path: {DEPLOY_MODEL_PATH}")
+        print(f"Model exists: {os.path.exists(DEPLOY_MODEL_PATH)}")
+        print(f"Current directory: {os.getcwd()}")
+        print(f"PYTHONPATH: {os.environ.get('PYTHONPATH', 'Not set')}")
+        
+        # Test if we can load the model
+        try:
+            print("\n=== Testing Model Loading ===")
+            interpreter = Interpreter(model_path=DEPLOY_MODEL_PATH, num_threads=1)
+            interpreter.allocate_tensors()
+            print("Model loaded successfully")
+            print(f"Input details: {interpreter.get_input_details()}")
+            print(f"Output details: {interpreter.get_output_details()}")
+        except Exception as e:
+            print(f"Error loading model: {str(e)}")
+            import traceback
+            print("Model loading traceback:")
+            traceback.print_exc()
+            raise
+        
+        print("\n=== Starting Flask App ===")
+        app.run(debug=True, port=PORT, host='0.0.0.0', use_reloader=False)
+    except Exception as e:
+        print(f"\n=== App Startup Error ===")
+        print(f"Error: {str(e)}")
+        import traceback
+        print("Startup traceback:")
+        traceback.print_exc()
