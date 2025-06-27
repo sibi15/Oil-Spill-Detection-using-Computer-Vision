@@ -6,6 +6,10 @@ import logging
 import numpy as np
 import psutil
 from skimage import resize
+import matplotlib.pyplot as plt
+import io
+import base64
+import time
 
 # Initialize Flask app
 app = Flask(__name__)
