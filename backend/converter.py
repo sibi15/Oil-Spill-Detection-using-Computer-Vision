@@ -28,25 +28,27 @@ custom_objects = {
 }
 
 def create_compatible_model(input_shape):
-    """Create a compatible model architecture without unsupported layers"""
+    """Create a simple compatible model architecture"""
     inputs = layers.Input(shape=input_shape)
     
-    # Encoder
-    x = layers.Conv2D(64, 4, strides=2, padding='same')(inputs)
-    x = layers.BatchNormalization()(x)
-    x = layers.ReLU()(x)
+    # Simple encoder
+    x = layers.Conv2D(32, 3, padding='same', activation='relu')(inputs)
+    x = layers.MaxPooling2D()(x)
     
-    x = layers.Conv2D(128, 4, strides=2, padding='same')(x)
-    x = layers.BatchNormalization()(x)
-    x = layers.ReLU()(x)
+    x = layers.Conv2D(64, 3, padding='same', activation='relu')(x)
+    x = layers.MaxPooling2D()(x)
     
-    x = layers.Conv2D(256, 4, strides=2, padding='same')(x)
-    x = layers.BatchNormalization()(x)
-    x = layers.ReLU()(x)
+    # Simple decoder
+    x = layers.Conv2D(64, 3, padding='same', activation='relu')(x)
+    x = layers.UpSampling2D()(x)
     
-    x = layers.Conv2D(512, 4, strides=2, padding='same')(x)
-    x = layers.BatchNormalization()(x)
-    x = layers.ReLU()(x)
+    x = layers.Conv2D(32, 3, padding='same', activation='relu')(x)
+    x = layers.UpSampling2D()(x)
+    
+    # Output layer
+    outputs = layers.Conv2D(1, 1, activation='sigmoid')(x)
+    
+    return tf.keras.Model(inputs=inputs, outputs=outputs)
     
     # Decoder
     x = layers.Conv2DTranspose(256, 4, strides=2, padding='same')(x)
@@ -94,8 +96,6 @@ def convert_model():
     try:
         # Create new compatible model architecture
         logger.info("Creating compatible model architecture")
-        # We'll create a temporary model with dummy input shape
-        # and update it later with the actual input shape
         compatible_model = create_compatible_model((256, 256, 3))
         logger.info("Compatible model created")
 
@@ -115,13 +115,6 @@ def convert_model():
         converter = tf.lite.TFLiteConverter.from_saved_model(SAVEDMODEL_PATH)
         
         # Set optimization options
-        converter.optimizations = [tf.lite.Optimize.DEFAULT]
-        converter.target_spec.supported_types = [tf.float16]
-        converter.experimental_new_converter = True
-        converter.allow_custom_ops = True
-        converter.experimental_new_quantizer = True
-        
-        # Enable hybrid quantization
         converter.optimizations = [tf.lite.Optimize.DEFAULT]
         converter.target_spec.supported_ops = [
             tf.lite.OpsSet.TFLITE_BUILTINS,  # Enable TensorFlow Lite ops.
@@ -144,6 +137,7 @@ def convert_model():
 
     except Exception as e:
         logger.error(f"Error during conversion: {str(e)}")
+        return False
         return False
 
 if __name__ == "__main__":
