@@ -399,12 +399,22 @@ def predict():
 
 if __name__ == '__main__':
     try:
-        print(f"\nStarting Flask app on port {PORT}")
-        print(f"Model path: {DEPLOY_MODEL_PATH}")
-        print(f"Model exists: {os.path.exists(DEPLOY_MODEL_PATH)}")
-        print(f"Current directory: {os.getcwd()}")
-        print(f"PYTHONPATH: {os.environ.get('PYTHONPATH', 'Not set')}")
+        # Get port from environment variable
+        port = int(os.environ.get('PORT', 5001))
         
+        print(f"\nStarting Flask app on port {port}")
+        print(f"Model path: {DEPLOY_MODEL_PATH}")
+        
+        # Initialize model
+        get_model()
+        
+        # Run the app
+        app.run(
+            host='0.0.0.0',
+            port=port,
+            debug=False,
+            use_reloader=False
+        )
         # Test if we can load the model
         try:
             print("\n=== Testing Model Loading ===")
