@@ -8,12 +8,12 @@
       "startCommand": "gunicorn app:app --bind 0.0.0.0:8080 --workers 2 --timeout 300 --log-level error",
       "env": {
         "PORT": "8080",
-        "PYTHON_VERSION": "3.10.13",
+        "PYTHON_VERSION": "3.9.13",  # More stable on Render
         "PYTHONUNBUFFERED": "1",
         "SERVER_NAME": "oil-spill-backend"
       },
       "python": {
-        "version": "3.10.13"
+        "version": "3.9.13"
       }
     }
   ]
