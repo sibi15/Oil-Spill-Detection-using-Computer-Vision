@@ -51,6 +51,10 @@ MODEL_DOWNLOAD_URL = None  # No need to download
 # Use a more reliable path for the model
 # The model should be in the project root directory
 DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'sar_model.tflite')
+print(f"Model path: {DEPLOY_MODEL_PATH}")
+print(f"Model exists: {os.path.exists(DEPLOY_MODEL_PATH)}")
+print(f"Current directory: {os.getcwd()}")
+print(f"Directory contents: {os.listdir(os.path.dirname(DEPLOY_MODEL_PATH))}")
 
 # Verify model file exists and is readable
 if not os.path.exists(DEPLOY_MODEL_PATH):
