@@ -180,49 +180,54 @@ def resize_mask(mask, target_shape):
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    print("\n=== Received Headers ===")
-    print(request.headers)
+    try:
+        print("\n=== Received Headers ===")
+        print(request.headers)
 
-    print("\n=== Received Files ===")
-    print(request.files)
+        print("\n=== Received Files ===")
+        print(request.files)
 
-    print("\n=== Form Data ===")
-    print(request.form)
+        print("\n=== Form Data ===")
+        print(request.form)
 
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file part'}), 400
 
-    file = request.files['file']
-    image_type = request.form.get('imageType')
+        file = request.files['file']
+        image_type = request.form.get('imageType')
 
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
+        if file.filename == '':
+            return jsonify({'error': 'No selected file'}), 400
 
-    if file:
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(filepath)
+        if file:
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(UPLOAD_FOLDER, filename)
+            file.save(filepath)
 
-        # read raw grayscale image for plotting and density
-        original_image = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
+            # read raw grayscale image for plotting and density
+            original_image = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
 
-        # load processed image and optional true mask
-        processed_image = load_images(filepath)
-        true_mask = None
-        original_label = None
+            # load processed image and optional true mask
+            processed_image = load_images(filepath)
+            true_mask = None
+            original_label = None
 
-        # attempt auto-load static mask
-        base = os.path.splitext(filename)[0]
-        lbl_static = os.path.join(LABELS_FOLDER, f"{base}.png")
-        if os.path.exists(lbl_static):
-            original_label = cv2.imread(lbl_static, cv2.IMREAD_GRAYSCALE)
-            processed_image, true_mask = load_images(filepath, lbl_static)
+            # attempt auto-load static mask
+            base = os.path.splitext(filename)[0]
+            lbl_static = os.path.join(LABELS_FOLDER, f"{base}.png")
+            if os.path.exists(lbl_static):
+                original_label = cv2.imread(lbl_static, cv2.IMREAD_GRAYSCALE)
+                processed_image, true_mask = load_images(filepath, lbl_static)
 
-        # override with uploaded label if provided
-        label_file = request.files.get('label')
-        if label_file:
-            os.makedirs(LABELS_FOLDER, exist_ok=True)
-            lbl_fname = secure_filename(label_file.filename)
+            # override with uploaded label if provided
+            label_file = request.files.get('label')
+            if label_file:
+                os.makedirs(LABELS_FOLDER, exist_ok=True)
+                lbl_fname = secure_filename(label_file.filename)
+                lbl_path = os.path.join(LABELS_FOLDER, lbl_fname)
+                label_file.save(lbl_path)
+                original_label = cv2.imread(lbl_path, cv2.IMREAD_GRAYSCALE)
+                processed_image, true_mask = load_images(filepath, lbl_path)
 
             # Get model instance
             interpreter, input_details, output_details = get_model()
@@ -332,13 +337,9 @@ def predict():
                 'metrics': metrics
             })
 
-        except Exception as e:
-            traceback.print_exc()
-            return jsonify({'error': f'Error loading model or making prediction: {str(e)}'}), 500
-
-        except Exception as e:
-            traceback.print_exc()
-            return jsonify({'error': f'Error processing image: {str(e)}'}), 500
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'error': f'Error processing image: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(debug=False, port=PORT, host='0.0.0.0', use_reloader=False)
