@@ -77,10 +77,16 @@ def get_model():
     
     if interpreter is None:
         try:
-            # Download model if needed
-            if not os.path.exists(DEPLOY_MODEL_PATH) and MODEL_DOWNLOAD_URL:
-                if not download_model():
-                    raise Exception("Failed to download model")
+            # Verify model file exists and is readable
+            if not os.path.exists(DEPLOY_MODEL_PATH):
+                raise FileNotFoundError(f"Model file not found at {DEPLOY_MODEL_PATH}")
+                
+            # Check if we can read the file
+            try:
+                with open(DEPLOY_MODEL_PATH, 'rb') as f:
+                    f.read(1024)  # Read first 1KB to verify file is readable
+            except Exception as e:
+                raise IOError(f"Failed to read model file: {str(e)}")
             
             # Load model with memory optimization
             interpreter = Interpreter(model_path=DEPLOY_MODEL_PATH, num_threads=1)
