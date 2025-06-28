@@ -6,7 +6,7 @@ Journey into the unseen world of satellite imagery where machine learning meets 
 - Frontend: React 18 + TypeScript · Vite · Tailwind CSS · Axios · Lucide React
 - Backend: Flask (Python) · TensorFlow · OpenCV · Matplotlib
 - Deployment: Vercel (frontend) · Render (backend)
-- Additional Tools: CORS · REST API · Cloud model hosting (Google Drive, AWS S3, etc.)
+- Additional Tools: CORS · REST API · Cloud model hosting
 
 ### Features:
 - Real-Time Detection – Upload SAR or Infrared images and instantly receive visual segmentation of oil spills.
