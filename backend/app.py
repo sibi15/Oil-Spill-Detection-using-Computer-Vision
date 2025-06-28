@@ -354,6 +354,19 @@ def predict():
             plt.close()
             buf.seek(0)
             processed_image = base64.b64encode(buf.read()).decode('utf-8')
+            
+            # Create density graph separately
+            density_map = stats_density.astype(np.uint8)
+            plt.figure(figsize=(12, 3))
+            plt.imshow(density_map, cmap='jet', vmin=0, vmax=100)
+            plt.colorbar(ticks=[0, 20, 40, 60, 80, 100])
+            plt.title('Density Map (0–100)')
+            plt.axis('off')
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png')
+            plt.close()
+            buf.seek(0)
+            density_graph = base64.b64encode(buf.read()).decode('utf-8')
 
             # Compute metrics
             intersection = int(np.logical_and(ground_truth_mask, predicted_mask).sum())
@@ -384,7 +397,7 @@ def predict():
             
             return jsonify({
                 'processed_image': processed_image,
-                'density_graph': processed_image,
+                'density_graph': density_graph,
                 'metrics': metrics
             })
             
