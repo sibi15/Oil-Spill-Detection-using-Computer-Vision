@@ -292,23 +292,7 @@ def predict():
             # Get model instance
             interpreter, input_details, output_details = get_model()
             
-            # Verify input shape
-            input_shape = input_details[0]['shape']
-            logger.info(f"\n=== Model Input Shape ===")
-            logger.info(f"Expected shape: {input_shape}")
-            logger.info(f"Actual shape: {processed_image.shape}")
-            
-            # Prepare input tensor with correct shape
-            target_height = input_shape[1]
-            target_width = input_shape[2]
-            
-            if processed_image.shape[0] != target_height or processed_image.shape[1] != target_width:
-                logger.info(f"Resizing input to match model expected shape ({target_height}, {target_width})")
-                processed_image = tf_image.resize(processed_image, (target_height, target_width))
-            
-            # Ensure correct data type
-            processed_image = tf.cast(processed_image, tf.float32)
-            
+            # Prepare input tensor
             input_tensor = tf.expand_dims(processed_image, axis=0)
             
             # Set input tensor
@@ -321,11 +305,7 @@ def predict():
                 interpreter.invoke()
                 logger.info("Inference completed successfully")
             except Exception as e:
-                logger.error(f"\n=== Inference Error Details ===")
-                logger.error(f"Input tensor shape: {input_tensor.shape}")
-                logger.error(f"Input details: {input_details[0]}")
-                logger.error(f"Input tensor dtype: {input_tensor.dtype}")
-                logger.error(f"Input tensor min/max: {tf.reduce_min(input_tensor)}, {tf.reduce_max(input_tensor)}")
+                logger.error(f"Error during inference: {str(e)}")
                 raise e
             
             # Get output tensor
@@ -336,10 +316,19 @@ def predict():
             prediction = (output[0] > 0.5).astype(np.uint8)
             logger.info(f"Prediction processed successfully. Shape: {prediction.shape}")
             
-            # Calculate metrics
-            std_dev = float(np.std(masked_density)) if masked_density.size > 0 else 0.0
-
             # Create visualization
+            img_arr = processed_image
+            gray_img = img_arr.mean(axis=2)
+            ground_truth_mask = prediction.copy()
+            predicted_mask = prediction.copy()
+            
+            # Density map and stats
+            stats_density = gray_img * predicted_mask * 100.0
+            masked_density = stats_density[predicted_mask > 0]
+            mean_intensity = float(np.mean(masked_density)) if masked_density.size > 0 else 0.0
+            std_dev = float(np.std(masked_density)) if masked_density.size > 0 else 0.0
+            
+            # Plot visualizations
             normed_uint8 = stats_density.astype(np.uint8)
             plt.figure(figsize=(12, 3))
             plt.subplot(1, 4, 1)
@@ -364,26 +353,28 @@ def predict():
             plt.savefig(buf, format='png')
             plt.close()
             buf.seek(0)
-            density_b64 = base64.b64encode(buf.read()).decode('utf-8')
+            processed_image = base64.b64encode(buf.read()).decode('utf-8')
 
             # Compute metrics
-            intersection = int(np.logical_and(
-                ground_truth_mask, predicted_mask).sum())
-            union = int(np.logical_or(
-                ground_truth_mask, predicted_mask).sum())
+            intersection = int(np.logical_and(ground_truth_mask, predicted_mask).sum())
+            union = int(np.logical_or(ground_truth_mask, predicted_mask).sum())
             iou = intersection / (union + 1e-6)
-            dice = float(dice_coefficient(
-                ground_truth_mask, predicted_mask))
+            dice = (2. * intersection) / (np.sum(ground_truth_mask) + np.sum(predicted_mask) + 1e-6)
             precision = intersection / (predicted_mask.sum() + 1e-6)
             recall = intersection / (ground_truth_mask.sum() + 1e-6)
             spill_pixels = int(np.count_nonzero(ground_truth_mask))
             total_pixels = ground_truth_mask.size
             spill_area = float(spill_pixels / total_pixels) * 100
+
             metrics = {
-                'mean': float(np.mean(prediction)),
-                'std': float(np.std(prediction)),
-                'max': float(np.max(prediction)),
-                'min': float(np.min(prediction))
+                'dice': float(dice),
+                'iou': float(iou),
+                'spill_pixels': spill_pixels,
+                'spill_area': spill_area,
+                'precision': float(precision),
+                'recall': float(recall),
+                'mean_intensity': mean_intensity,
+                'standard_deviation': std_dev
             }
             logger.info(f"Metrics calculated: {metrics}")
             
@@ -392,17 +383,21 @@ def predict():
             logger.info(f"Temporary file removed: {temp_path}")
             
             return jsonify({
-                'success': True,
-                'metrics': metrics,
-                'timestamp': time.time()
+                'processed_image': processed_image,
+                'density_graph': processed_image,
+                'metrics': metrics
             })
-        
+            
         except Exception as e:
             logger.error(f"Error processing image: {str(e)}")
-            raise
-    
+            raise e
+            
     except Exception as e:
         logger.error(f"Error in predict endpoint: {str(e)}")
+        import traceback
+        logger.error("Full traceback:")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
         return jsonify({'error': f'Error processing image: {str(e)}'}), 500
 
 if __name__ == '__main__':
