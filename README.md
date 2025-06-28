@@ -15,6 +15,9 @@ Journey into the unseen world of satellite imagery where machine learning meets 
 - Visual Output – Returns both processed images and density graphs to help interpret spill severity and spread.
 - Modern UX – Built with a sleek UI using Tailwind CSS and icon-rich design powered by Lucide React.
 
+### Deployed Web App:
+https://oil-spill-frontend.vercel.app/
+
 ### Who Benefits:
 - Environmental Analysts needing fast, AI-powered spill assessments
 - Oceanographers and climate researchers looking for pixel-level segmentation
