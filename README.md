@@ -1,4 +1,4 @@
-# Oil Spill Detection using Computer Vision
+# Oil Spill Detection using Computer Vision: Spotting Marine Oil Spills with Satellite Eyes
 
 Journey into the unseen world of satellite imagery where machine learning meets environmental science. This interactive full-stack web app uncovers oil spills hidden in SAR (Synthetic Aperture Radar) and satellite images, turning complex data into clear, actionable insights for climate responders, marine researchers, and curious minds alike.
 
