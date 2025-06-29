@@ -324,23 +324,6 @@ if __name__ == '__main__':
             debug=False,
             use_reloader=False
         )
-        # Test if we can load the model
-        try:
-            print("\n=== Testing Model Loading ===")
-            interpreter = Interpreter(model_path=DEPLOY_MODEL_PATH, num_threads=1)
-            interpreter.allocate_tensors()
-            print("Model loaded successfully")
-            print(f"Input details: {interpreter.get_input_details()}")
-            print(f"Output details: {interpreter.get_output_details()}")
-        except Exception as e:
-            print(f"Error loading model: {str(e)}")
-            import traceback
-            print("Model loading traceback:")
-            traceback.print_exc()
-            raise
-        
-        print("\n=== Starting Flask App ===")
-        app.run(debug=True, port=PORT, host='0.0.0.0', use_reloader=False)
     except Exception as e:
         print(f"\n=== App Startup Error ===")
         print(f"Error: {str(e)}")
