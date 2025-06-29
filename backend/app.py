@@ -10,58 +10,6 @@ import matplotlib.pyplot as plt
 import io
 import base64
 import time
-
-# Initialize Flask app
-app = Flask(__name__)
-CORS(app)
-
-# Configuration
-UPLOAD_FOLDER = '/tmp/uploads'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['ENV'] = 'development'
-app.config['DEBUG'] = True
-app.config['CORS_HEADERS'] = 'Content-Type'
-DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'sar_model_converted.tflite')
-
-# Ensure directories exist
-os.makedirs('uploads', exist_ok=True)
-
-# Server configuration
-PORT = 5001
-
-# Model loading utilities
-def get_model():
-    # Get or create the TensorFlow Lite model instance with memory optimization
-    global interpreter, input_details, output_details
-    
-    if interpreter is None:
-        try:
-            logger.info(f"Loading model from {DEPLOY_MODEL_PATH}")
-            if not os.path.exists(DEPLOY_MODEL_PATH):
-                logger.error(f"Model file not found at {DEPLOY_MODEL_PATH}")
-                raise FileNotFoundError(f"Model file not found at {DEPLOY_MODEL_PATH}")
-                
-            logger.info("Loading TensorFlow Lite model...")
-            interpreter = Interpreter(model_path=DEPLOY_MODEL_PATH, num_threads=1)
-            interpreter.allocate_tensors()
-            logger.info("Model tensors allocated")
-            
-            # Get model details
-            input_details = interpreter.get_input_details()
-            output_details = interpreter.get_output_details()
-            logger.info(f"Model input details: {input_details}")
-            logger.info(f"Model output details: {output_details}")
-            
-            # Log memory usage
-            current_memory = psutil.virtual_memory().used / (1024 * 1024)
-            logger.info(f"Model loaded successfully. Memory usage: {current_memory:.1f} MB")
-            
-        except Exception as e:
-            logger.error(f"Error loading model: {str(e)}")
-            raise e
-    
-    return interpreter, input_details, output_details
-    
 import tensorflow as tf
 import tensorflow.image as tf_image
 from tensorflow.lite.python.interpreter import Interpreter
@@ -69,7 +17,6 @@ from werkzeug.utils import secure_filename
 import traceback
 import requests
 from dotenv import load_dotenv
-import logging
 
 # Configure logging
 logging.basicConfig(
@@ -89,6 +36,7 @@ MODEL_FOLDER = os.getenv('MODEL_FOLDER', 'models')
 LABELS_FOLDER = os.getenv('LABELS_FOLDER', '/tmp/labels')
 OUTPUT_SIZE = (512, 512)
 SAMPLE_SIZE = (256, 256)
+PORT = 8080
 
 # Create necessary directories
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -97,16 +45,7 @@ os.makedirs(MODEL_FOLDER, exist_ok=True)
 os.makedirs(LABELS_FOLDER, exist_ok=True)
 
 # Model configuration
-LOCAL_MODEL_PATH = os.path.join(MODEL_FOLDER, 'sar_model.keras')
-
-# Using TensorFlow Lite
-MODEL_DOWNLOAD_URL = None
-
 DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'sar_model_converted.tflite')
-print(f"Model path: {DEPLOY_MODEL_PATH}")
-print(f"Model exists: {os.path.exists(DEPLOY_MODEL_PATH)}")
-print(f"Current directory: {os.getcwd()}")
-print(f"Directory contents: {os.listdir(os.path.dirname(DEPLOY_MODEL_PATH))}")
 
 # Verify model file exists and is readable
 if not os.path.exists(DEPLOY_MODEL_PATH):
@@ -114,27 +53,11 @@ if not os.path.exists(DEPLOY_MODEL_PATH):
 if not os.access(DEPLOY_MODEL_PATH, os.R_OK):
     raise PermissionError(f"Cannot read model file at {DEPLOY_MODEL_PATH}")
 
-# Log model file details
-print(f"Using model file: {DEPLOY_MODEL_PATH}")
-print(f"Model file size: {os.path.getsize(DEPLOY_MODEL_PATH)} bytes")
-
-# Create models directory if it doesn't exist
-os.makedirs(os.path.dirname(DEPLOY_MODEL_PATH), exist_ok=True)
-
-def download_model():
-    # Check if local model exists and verify it's readable
-    if os.path.exists(DEPLOY_MODEL_PATH):
-        try:
-            # Try to open and read a small part of the file
-            with open(DEPLOY_MODEL_PATH, 'rb') as f:
-                f.read(1024)
-            logger.info("Using local model")
-            return True
-        except Exception as e:
-            logger.error(f"Error accessing model file: {str(e)}")
-            return False
-    logger.error("Local model not found")
-    return False
+# Initialize model variables
+global interpreter, input_details, output_details
+interpreter = None
+input_details = None
+output_details = None
 
 # Model loading utilities
 def get_model():
@@ -143,17 +66,16 @@ def get_model():
     
     if interpreter is None:
         try:
-            # Verify model file exists and is readable
-            if not os.path.exists(DEPLOY_MODEL_PATH):
-                raise FileNotFoundError(f"Model file not found at {DEPLOY_MODEL_PATH}")
-                
-            # Load model with minimal memory usage
+            logger.info(f"Loading model from {DEPLOY_MODEL_PATH}")
             interpreter = Interpreter(model_path=DEPLOY_MODEL_PATH, num_threads=1)
             interpreter.allocate_tensors()
+            logger.info("Model tensors allocated")
             
             # Get model details
             input_details = interpreter.get_input_details()
             output_details = interpreter.get_output_details()
+            logger.info(f"Model input details: {input_details}")
+            logger.info(f"Model output details: {output_details}")
             
             # Log memory usage
             current_memory = psutil.virtual_memory().used / (1024 * 1024)
@@ -165,39 +87,12 @@ def get_model():
     
     return interpreter, input_details, output_details
 
-# Initialize model as None - will be loaded on first request
-interpreter = None
-input_details = None
-output_details = None
-
-# Server configuration
-PORT = 5000
-app.config['ENV'] = 'development'
-app.config['DEBUG'] = True
-app.config['CORS_HEADERS'] = 'Content-Type'
-
-# Ensure directories exist
-os.makedirs('uploads', exist_ok=True)
-os.makedirs('results', exist_ok=True)
-os.makedirs('models', exist_ok=True)
-os.makedirs('labels', exist_ok=True)
-
 # Initialize Flask app with proper port binding
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=PORT)
 
-# Ensure directories exist
-os.makedirs('uploads', exist_ok=True)
-os.makedirs('results', exist_ok=True)
-os.makedirs('models', exist_ok=True)
-os.makedirs('labels', exist_ok=True)
-
-# Initialize Flask app with proper port binding
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=PORT)
-# Remove model download function since we're using local model
-# Model should be included in git repository
-PYTHONUNBUFFERED = os.getenv('PYTHONUNBUFFERED', '1')  # Enable unbuffered output for better logging
+# Environment variable for unbuffered output
+PYTHONUNBUFFERED = os.getenv('PYTHONUNBUFFERED', '1')
 
 def load_images(image_path, label_path=None):
     image = tf.io.read_file(image_path)

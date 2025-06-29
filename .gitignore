@@ -1,14 +1,15 @@
-# Dependencies
-node_modules/
+# Python virtual environments
+venv/
+env/
+.venv/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
-env/
-venv/
-myenv/
-.venv/
+
+# Node.js dependencies
+node_modules/
 
 # Build outputs
 dist/
@@ -17,17 +18,13 @@ build/
 
 # Environment variables
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
 
 # IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
 # OS files
 .DS_Store
@@ -50,26 +47,18 @@ pids
 *.seed
 *.pid.lock
 
-# Coverage directory used by tools like istanbul
+# Coverage directory
 coverage/
 
-# Large model files (too big for git)
+# Model files
 backend/models/*.keras
 backend/models/*.h5
 # Allow SAR model
 !backend/models/sar_model.keras
 !backend/models/sar_model.h5
-# Ignore other model files
-backend/models/*.h5
-backend/models/*.pkl
-
-# Upload and result files
-backend/uploads/
-backend/results/
-backend/labels/
 
 # Temporary files
 /tmp/
 *.tmp
-*.temp 
+*.temp
 .vercel
