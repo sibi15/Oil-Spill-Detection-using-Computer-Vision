@@ -31,7 +31,7 @@ PORT = 5001
 
 # Model loading utilities
 def get_model():
-    """Get or create the TensorFlow Lite model instance with memory optimization"""
+    # Get or create the TensorFlow Lite model instance with memory optimization
     global interpreter, input_details, output_details
     
     if interpreter is None:
@@ -61,11 +61,12 @@ def get_model():
             raise e
     
     return interpreter, input_details, output_details
+    
 import tensorflow as tf
 import tensorflow.image as tf_image
 from tensorflow.lite.python.interpreter import Interpreter
 from werkzeug.utils import secure_filename
-import traceback  # for debug exception tracing
+import traceback
 import requests
 from dotenv import load_dotenv
 import logging
@@ -96,14 +97,11 @@ os.makedirs(MODEL_FOLDER, exist_ok=True)
 os.makedirs(LABELS_FOLDER, exist_ok=True)
 
 # Model configuration
-# For local development
 LOCAL_MODEL_PATH = os.path.join(MODEL_FOLDER, 'sar_model.keras')
 
-# For deployment on Render - model will be downloaded from GitHub Releases
-# Using TensorFlow Lite# Use local model directly from repository
-MODEL_DOWNLOAD_URL = None  # No need to download
-# Use a more reliable path for the model
-# The model should be in the project root directory
+# Using TensorFlow Lite
+MODEL_DOWNLOAD_URL = None
+
 DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'sar_model_converted.tflite')
 print(f"Model path: {DEPLOY_MODEL_PATH}")
 print(f"Model exists: {os.path.exists(DEPLOY_MODEL_PATH)}")
@@ -124,12 +122,12 @@ print(f"Model file size: {os.path.getsize(DEPLOY_MODEL_PATH)} bytes")
 os.makedirs(os.path.dirname(DEPLOY_MODEL_PATH), exist_ok=True)
 
 def download_model():
-    """Check if local model exists and verify it's readable"""
+    # Check if local model exists and verify it's readable
     if os.path.exists(DEPLOY_MODEL_PATH):
         try:
             # Try to open and read a small part of the file
             with open(DEPLOY_MODEL_PATH, 'rb') as f:
-                f.read(1024)  # Read first 1KB
+                f.read(1024)
             logger.info("Using local model")
             return True
         except Exception as e:
@@ -140,7 +138,7 @@ def download_model():
 
 # Model loading utilities
 def get_model():
-    """Get or create the TensorFlow Lite model instance with memory optimization"""
+    # Get or create the TensorFlow Lite model instance with memory optimization
     global interpreter, input_details, output_details
     
     if interpreter is None:
