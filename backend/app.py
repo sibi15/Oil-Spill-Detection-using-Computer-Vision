@@ -87,10 +87,6 @@ def get_model():
     
     return interpreter, input_details, output_details
 
-# Initialize Flask app with proper port binding
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=PORT)
-
 # Environment variable for unbuffered output
 PYTHONUNBUFFERED = os.getenv('PYTHONUNBUFFERED', '1')
 
@@ -158,7 +154,9 @@ def predict():
         logger.info(f"Processing image type: {image_type}")
         
         # Save uploaded file temporarily
-        temp_path = os.path.join('uploads', file.filename)
+        # Never trust the client's filename: strip path separators and other unsafe characters
+        filename = secure_filename(file.filename) or 'upload'
+        temp_path = os.path.join(UPLOAD_FOLDER, filename)
         file.save(temp_path)
         logger.info(f"File saved to: {temp_path}")
         
