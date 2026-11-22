@@ -45,8 +45,8 @@ fi
 echo "Model file successfully verified in models directory"
 
 # Verify dependencies
-if ! python3 -c "import tensorflow" &> /dev/null; then
-    echo "Error: TensorFlow is not installed"
+if ! python3 -c "from ai_edge_litert.interpreter import Interpreter" &> /dev/null; then
+    echo "Error: LiteRT (ai-edge-litert) is not installed"
     exit 1
 fi
 

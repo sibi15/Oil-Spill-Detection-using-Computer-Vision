@@ -5,18 +5,23 @@ import os
 import logging
 import numpy as np
 import psutil
-from skimage.transform import resize
+import matplotlib
+matplotlib.use('Agg')  # headless server: no GUI backend
 import matplotlib.pyplot as plt
 import io
 import base64
-import time
-import tensorflow as tf
-import tensorflow.image as tf_image
-from tensorflow.lite.python.interpreter import Interpreter
 from werkzeug.utils import secure_filename
-import traceback
-import requests
-from dotenv import load_dotenv
+
+# Only the TFLite interpreter is needed at inference time. The standalone LiteRT
+# runtime is a few MB, where full TensorFlow costs hundreds of MB per worker and
+# runs a small (512 MB) instance out of memory.
+try:
+    from ai_edge_litert.interpreter import Interpreter
+except ImportError:
+    try:
+        from tflite_runtime.interpreter import Interpreter
+    except ImportError:
+        from tensorflow.lite.python.interpreter import Interpreter
 
 # Configure logging
 logging.basicConfig(
@@ -77,9 +82,9 @@ def get_model():
             logger.info(f"Model input details: {input_details}")
             logger.info(f"Model output details: {output_details}")
             
-            # Log memory usage
-            current_memory = psutil.virtual_memory().used / (1024 * 1024)
-            logger.info(f"Model loaded successfully. Memory usage: {current_memory:.1f} MB")
+            # Log this worker's memory use
+            current_memory = psutil.Process().memory_info().rss / (1024 * 1024)
+            logger.info(f"Model loaded successfully. Worker memory: {current_memory:.1f} MB")
             
         except Exception as e:
             logger.error(f"Error loading model: {str(e)}")
@@ -90,27 +95,6 @@ def get_model():
 # Environment variable for unbuffered output
 PYTHONUNBUFFERED = os.getenv('PYTHONUNBUFFERED', '1')
 
-def load_images(image_path, label_path=None):
-    image = tf.io.read_file(image_path)
-    image = tf.image.decode_jpeg(image, channels=3)
-    image = tf.image.resize(image, OUTPUT_SIZE)
-    image = tf.image.convert_image_dtype(image, tf.float32) / 255.0
-
-    if label_path:
-        label = tf.io.read_file(label_path)
-        label = tf.image.decode_png(label, channels=1)
-        label = tf.image.resize(label, OUTPUT_SIZE)
-        label = tf.image.convert_image_dtype(label, tf.float32)
-        label = tf.cast(label > 0, tf.float32)
-
-        image = tf.image.resize(image, SAMPLE_SIZE)
-        label = tf.image.resize(label, SAMPLE_SIZE)
-        return image, label
-
-    image = tf.image.resize(image, SAMPLE_SIZE)
-    return image
-
-
 def dice_coefficient(y_true, y_pred):
     intersection = np.sum(y_true * y_pred)
     return (2. * intersection) / (np.sum(y_true) + np.sum(y_pred) + 1e-6)
@@ -118,12 +102,6 @@ def dice_coefficient(y_true, y_pred):
 
 def classify_density(x):
     return x  # simple pass-through density classifier
-
-
-def resize_mask(mask, target_shape):
-    if mask.shape != target_shape:
-        return resize(mask, target_shape, mode='constant', preserve_range=True)
-    return mask
 
 
 @app.route('/')
@@ -135,7 +113,6 @@ def health_check():
 def predict():
     try:
         logger.info("New prediction request received")
-        logger.info(f"Headers: {dict(request.headers)}")
         logger.info(f"Files: {request.files}")
         logger.info(f"Form: {request.form}")
         
@@ -184,10 +161,10 @@ def predict():
             interpreter, input_details, output_details = get_model()
             
             # Prepare input tensor
-            input_tensor = tf.expand_dims(processed_image, axis=0)
+            input_tensor = np.expand_dims(processed_image, axis=0)
             
             # Set input tensor
-            interpreter.set_tensor(input_details[0]['index'], input_tensor.numpy())
+            interpreter.set_tensor(input_details[0]['index'], input_tensor)
             logger.info(f"Input tensor set successfully. Shape: {input_tensor.shape}")
             
             # Run inference
@@ -204,7 +181,10 @@ def predict():
             logger.info(f"Output tensor shape: {output.shape}")
             
             # Process output
-            prediction = (output[0] > 0.5).astype(np.uint8)
+            # Output is (1, 256, 256, 1): drop the batch and channel axes to get a 2-D mask.
+            # Keeping the channel axis would broadcast against the 2-D image below
+            # into a (256, 256, 256) array.
+            prediction = (output[0, :, :, 0] > 0.5).astype(np.uint8)
             logger.info(f"Prediction processed successfully. Shape: {prediction.shape}")
             
             # Create visualization
@@ -282,10 +262,6 @@ def predict():
             }
             logger.info(f"Metrics calculated: {metrics}")
             
-            # Clean up
-            os.remove(temp_path)
-            logger.info(f"Temporary file removed: {temp_path}")
-            
             return jsonify({
                 'processed_image': processed_image,
                 'density_graph': density_graph,
@@ -295,14 +271,17 @@ def predict():
         except Exception as e:
             logger.error(f"Error processing image: {str(e)}")
             raise e
+        finally:
+            # Always remove the upload, including when processing fails
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
             
     except Exception as e:
         logger.error(f"Error in predict endpoint: {str(e)}")
         import traceback
         logger.error("Full traceback:")
         logger.error(traceback.format_exc())
-        return jsonify({'error': str(e)}), 500
-        return jsonify({'error': f'Error processing image: {str(e)}'}), 500
+        return jsonify({'error': 'Error processing image'}), 500
 
 if __name__ == '__main__':
     try:
