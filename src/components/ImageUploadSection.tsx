@@ -250,7 +250,7 @@ const ImageUploadSection: React.FC = () => {
                     <img
                       src={`data:image/png;base64,${analysisResult.densityGraph}`}
                       alt="Density Graph"
-                      className="w-full rounded-lg mb-6"
+                      className="w-full max-w-md mx-auto block rounded-lg mb-6"
                     />
                   </>
                 )}

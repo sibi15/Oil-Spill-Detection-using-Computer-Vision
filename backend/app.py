@@ -248,14 +248,16 @@ def _predict():
             processed_image = base64.b64encode(buf.read()).decode('utf-8')
             
             # Create density graph separately
+            # Square figure cropped to its content: a wide 12x3 canvas left the
+            # map in one corner of a mostly blank image.
             density_map = stats_density.astype(np.uint8)
-            plt.figure(figsize=(12, 3))
+            plt.figure(figsize=(5.5, 4.5))
             plt.imshow(density_map, cmap='jet', vmin=0, vmax=100)
-            plt.colorbar(ticks=[0, 20, 40, 60, 80, 100])
+            plt.colorbar(ticks=[0, 20, 40, 60, 80, 100], fraction=0.046, pad=0.04)
             plt.title('Density Map (0–100)')
             plt.axis('off')
             buf = io.BytesIO()
-            plt.savefig(buf, format='png')
+            plt.savefig(buf, format='png', dpi=120, bbox_inches='tight')
             plt.close()
             buf.seek(0)
             density_graph = base64.b64encode(buf.read()).decode('utf-8')
