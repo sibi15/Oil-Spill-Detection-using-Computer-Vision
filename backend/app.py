@@ -10,7 +10,9 @@ matplotlib.use('Agg')  # headless server: no GUI backend
 import matplotlib.pyplot as plt
 import io
 import base64
-from werkzeug.utils import secure_filename
+import threading
+from PIL import Image
+from werkzeug.exceptions import HTTPException
 
 # Only the TFLite interpreter is needed at inference time. The standalone LiteRT
 # runtime is a few MB, where full TensorFlow costs hundreds of MB per worker and
@@ -35,19 +37,12 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "OPTIONS"], "allow_headers": "*", "expose_headers": "*"}}, supports_credentials=True)
 
 # Configuration
-UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', '/tmp/uploads')
-RESULTS_FOLDER = os.getenv('RESULTS_FOLDER', '/tmp/results')
-MODEL_FOLDER = os.getenv('MODEL_FOLDER', 'models')
-LABELS_FOLDER = os.getenv('LABELS_FOLDER', '/tmp/labels')
 OUTPUT_SIZE = (512, 512)
 SAMPLE_SIZE = (256, 256)
 PORT = 8080
+MAX_UPLOAD_MB = 20
+app.config['MAX_CONTENT_LENGTH'] = MAX_UPLOAD_MB * 1024 * 1024
 
-# Create necessary directories
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(RESULTS_FOLDER, exist_ok=True)
-os.makedirs(MODEL_FOLDER, exist_ok=True)
-os.makedirs(LABELS_FOLDER, exist_ok=True)
 
 # Model configuration
 DEPLOY_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'sar_model_converted.tflite')
@@ -104,13 +99,54 @@ def classify_density(x):
     return x  # simple pass-through density classifier
 
 
+def decode_image(data):
+    """Decode an upload to an RGB uint8 array without holding a full-size photo in memory.
+
+    A 12 MP phone photo decodes to ~36 MB per copy, enough to push a small instance
+    over its memory limit. The model only needs 256 x 256, so JPEGs are decoded at
+    1/2, 1/4 or 1/8 scale (libjpeg does this cheaply) while staying above 512 px.
+    """
+    flag = cv2.IMREAD_COLOR
+    try:
+        w, h = Image.open(io.BytesIO(data)).size  # reads the header only
+        short_side = min(w, h)
+        for scale, reduced in ((8, cv2.IMREAD_REDUCED_COLOR_8),
+                               (4, cv2.IMREAD_REDUCED_COLOR_4),
+                               (2, cv2.IMREAD_REDUCED_COLOR_2)):
+            if short_side // scale >= 512:
+                flag = reduced
+                break
+    except Exception:
+        pass  # unknown header: let OpenCV decide whether it can read it
+    image = cv2.imdecode(np.frombuffer(data, np.uint8), flag)
+    if image is None:
+        return None
+    return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+
+@app.errorhandler(413)
+def too_large(_):
+    return jsonify({'error': f'Image is too large (max {MAX_UPLOAD_MB} MB)'}), 413
+
+
 @app.route('/')
 def health_check():
     logger.info("Health check request received")
     return jsonify({"status": "healthy", "version": "1.0.0"})
 
+# One interpreter per process, shared by request threads. Neither the TFLite
+# interpreter nor matplotlib's pyplot is thread-safe, and the model's working
+# memory (~300 MB) only fits a small instance once, so predictions run one at a time.
+PREDICT_LOCK = threading.Lock()
+
+
 @app.route('/predict', methods=['POST'])
 def predict():
+    with PREDICT_LOCK:
+        return _predict()
+
+
+def _predict():
     try:
         logger.info("New prediction request received")
         logger.info(f"Files: {request.files}")
@@ -130,27 +166,12 @@ def predict():
         image_type = request.form.get('imageType', 'sar')
         logger.info(f"Processing image type: {image_type}")
         
-        # Save uploaded file temporarily
-        # Never trust the client's filename: strip path separators and other unsafe characters
-        filename = secure_filename(file.filename) or 'upload'
-        temp_path = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(temp_path)
-        logger.info(f"File saved to: {temp_path}")
-        
-        # Load and preprocess image
+        # Decode in memory: nothing is written to disk
         try:
-            image = cv2.imread(temp_path)
+            image = decode_image(file.read())
             if image is None:
-                logger.error(f"Failed to read image from {temp_path}")
+                logger.error("Failed to decode upload")
                 return jsonify({'error': 'Failed to read image'}), 400
-            
-            # Convert to RGB if needed
-            if len(image.shape) == 2:
-                image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
-            elif image.shape[2] == 4:
-                image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGB)
-            else:
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             
             # Resize to model input size
             processed_image = cv2.resize(image, (256, 256))
@@ -271,11 +292,9 @@ def predict():
         except Exception as e:
             logger.error(f"Error processing image: {str(e)}")
             raise e
-        finally:
-            # Always remove the upload, including when processing fails
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
             
+    except HTTPException:
+        raise  # e.g. 413 for an oversized upload: keep its status and message
     except Exception as e:
         logger.error(f"Error in predict endpoint: {str(e)}")
         import traceback

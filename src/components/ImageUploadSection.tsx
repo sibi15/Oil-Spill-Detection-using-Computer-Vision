@@ -89,8 +89,17 @@ const ImageUploadSection: React.FC = () => {
         },
       });
     } catch (err: any) {
-      // log detailed error to console, don't display in UI
       console.error("Upload error:", err.response?.data?.error || err);
+      const serverMessage = err.response?.data?.error;
+      if (serverMessage) {
+        // Validation errors from the API (unreadable or oversized image, etc.)
+        setError(serverMessage);
+      } else {
+        // No usable response: the free-tier server is waking up, restarting or busy
+        setError(
+          "The analysis server didn't respond. It sleeps when idle and can take about a minute to wake up, so please try again shortly."
+        );
+      }
     } finally {
       setIsUploading(false);
     }
@@ -216,6 +225,11 @@ const ImageUploadSection: React.FC = () => {
               >
                 {isUploading ? "Analyzing..." : "Analyze Image"}
               </button>
+              {isUploading && (
+                <p className="mt-2 text-sm text-gray-500 text-center">
+                  The first analysis can take up to a minute while the server wakes up.
+                </p>
+              )}
             </div>
 
             {analysisResult && (
