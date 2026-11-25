@@ -58,7 +58,7 @@ const EnvironmentalImpactSection: React.FC = () => {
               </p>
               <p className="text-gray-700">
                 The segmentation models are trained on labelled SAR and infrared images of oil spills, 
-                and learn to separate oil slicks from look-alikes such as algal blooms. Our U-Net model 
+                and learn to separate oil slicks from look-alikes such as algal blooms. Our best U-Net model 
                 reaches an F1 score of 0.92 on SAR imagery.
               </p>
             </div>

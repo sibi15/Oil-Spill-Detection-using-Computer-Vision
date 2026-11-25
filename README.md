@@ -16,7 +16,8 @@ A two-person project.
 
 ## Results
 
-- **U-Net on SAR: F1 0.92.** This is the model the deployed app serves.
+- **U-Net on SAR: F1 0.92** (trained without augmentation).
+- The deployed app serves the U-Net trained with augmentation, which scored F1 0.74.
 - DeepLabv3 and CNN models were also trained, on infrared and SAR imagery.
 - Models were evaluated with Dice coefficient, IoU, precision and recall.
 
@@ -61,10 +62,10 @@ In production the API runs under gunicorn (see `backend/Procfile` and `backend/r
 ```
 backend/          Flask API, TFLite model, Render config
 src/              React front end
-training_files/   model training notebooks (U-Net, DeepLabv3)
+training_files/   model training notebooks (U-Net with and without augmentation, DeepLabv3)
 data_analysis/    exploratory data analysis notebooks
 ```
 
 ## Tech
 
-React 18, TypeScript, Vite, Tailwind CSS · Flask, gunicorn · TensorFlow / TFLite, OpenCV, scikit-image · Vercel, Render
+React 18, TypeScript, Vite, Tailwind CSS · Flask, gunicorn · TensorFlow / TFLite, OpenCV · Vercel, Render
