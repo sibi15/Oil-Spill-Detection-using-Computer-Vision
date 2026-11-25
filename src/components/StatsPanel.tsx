@@ -35,8 +35,8 @@ const StatsPanel: React.FC = () => {
           <Stat 
             icon={SatelliteDish}
             color="bg-green-500"
-            value="85-95%" 
-            description="accuracy in satellite-based early detection systems" 
+            value="0.92" 
+            description="F1 score of our U-Net model on SAR imagery" 
           />
           <Stat 
             icon={Clock}

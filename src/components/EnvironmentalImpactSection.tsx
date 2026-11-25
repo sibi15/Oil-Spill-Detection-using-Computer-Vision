@@ -57,9 +57,9 @@ const EnvironmentalImpactSection: React.FC = () => {
                 darkness, providing 24/7 monitoring capabilities.
               </p>
               <p className="text-gray-700">
-                The machine learning algorithms have been trained on thousands of historical oil spill 
-                images, allowing them to distinguish between natural phenomena (like algal blooms) and 
-                actual oil spills with 85-95% accuracy.
+                The segmentation models are trained on labelled SAR and infrared images of oil spills, 
+                and learn to separate oil slicks from look-alikes such as algal blooms. Our U-Net model 
+                reaches an F1 score of 0.92 on SAR imagery.
               </p>
             </div>
           </div>
