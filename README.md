@@ -5,7 +5,7 @@ Journey into the unseen world of satellite imagery where machine learning meets 
 ### Team and Roles:
 A two-person project.
 - **[Sowmya Sriram](https://github.com/sowmya0948)** – Inference service and deployment: the Flask prediction API, model loading, input validation, and hosting (React front end on Vercel, API on Render).
-- **[Sibi Karthik C V](https://github.com/sibi15)** – Co-author
+- **[Sibi Karthik C V](https://github.com/sibi15)** – Segmentation models and front end: data preparation, training and evaluation of the U-Net, DeepLabv3 and CNN models on SAR and infrared imagery, and the React front end.
 
 ### Technologies Used:
 - Frontend: React 18 + TypeScript · Vite · Tailwind CSS · Axios · Lucide React
@@ -14,7 +14,7 @@ A two-person project.
 - Additional Tools: CORS · REST API · Cloud model hosting
 
 ### Features:
-- Real-Time Detection – Upload SAR or Infrared images and instantly receive visual segmentation of oil spills.
+- Real-Time Detection – Upload SAR images and instantly receive visual segmentation of oil spills.
 - Deep Learning Models – Includes U-Net, DeepLabv3, and custom CNN architectures trained on annotated datasets.
 - Advanced Metrics – Dice coefficient, IoU, precision, recall, density, area, intensity... all in one detailed response.
 - Visual Output – Returns both processed images and density graphs to help interpret spill severity and spread.
